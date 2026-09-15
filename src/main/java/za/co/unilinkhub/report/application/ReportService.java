@@ -2,13 +2,20 @@ package za.co.unilinkhub.report.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.unilinkhub.business.domain.Business;
+import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
+import za.co.unilinkhub.listing.domain.Listing;
+import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.report.domain.Report;
 import za.co.unilinkhub.report.domain.ReportReason;
 import za.co.unilinkhub.report.domain.ReportStatus;
 import za.co.unilinkhub.report.domain.ReportTargetType;
 import za.co.unilinkhub.report.repository.ReportRepository;
+import za.co.unilinkhub.user.domain.User;
+import za.co.unilinkhub.user.repository.UserRepository;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +24,9 @@ import java.util.UUID;
 public class ReportService {
 
     private final ReportRepository reportRepository;
+    private final UserRepository userRepository;
+    private final ListingRepository listingRepository;
+    private final BusinessRepository businessRepository;
 
     public ReportDTO file(UUID reporterId, ReportTargetType targetType, UUID targetId, ReportReason reason, String details) {
         Report report = Report.file(reporterId, targetType, targetId, reason, details);
@@ -27,30 +37,76 @@ public class ReportService {
         return reportRepository.findByReporterId(reporterId).stream().map(ReportDTO::from).toList();
     }
 
-    public List<ReportDTO> queue(ReportStatus status) {
-        return reportRepository.findByStatus(status).stream().map(ReportDTO::from).toList();
+    public List<AdminReportView> queue(ReportStatus status) {
+        List<Report> reports = status == null ? reportRepository.findAll() : reportRepository.findByStatus(status);
+        return reports.stream()
+                .sorted(Comparator.comparing(Report::getCreatedAt).reversed())
+                .map(this::toAdminView)
+                .toList();
     }
 
-    public ReportDTO beginReview(UUID reportId, UUID adminId) {
+    public ReportStatusCounts counts() {
+        return new ReportStatusCounts(
+                reportRepository.countByStatus(ReportStatus.OPEN),
+                reportRepository.countByStatus(ReportStatus.UNDER_REVIEW),
+                reportRepository.countByStatus(ReportStatus.RESOLVED),
+                reportRepository.countByStatus(ReportStatus.DISMISSED)
+        );
+    }
+
+    public AdminReportView beginReview(UUID reportId, UUID adminId) {
         Report report = findReport(reportId);
         report.beginReview(adminId);
-        return ReportDTO.from(reportRepository.save(report));
+        return toAdminView(reportRepository.save(report));
     }
 
-    public ReportDTO resolve(UUID reportId, UUID adminId, String note) {
+    public AdminReportView resolve(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.resolve(adminId, note);
-        return ReportDTO.from(reportRepository.save(report));
+        return toAdminView(reportRepository.save(report));
     }
 
-    public ReportDTO dismiss(UUID reportId, UUID adminId, String note) {
+    public AdminReportView dismiss(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.dismiss(adminId, note);
-        return ReportDTO.from(reportRepository.save(report));
+        return toAdminView(reportRepository.save(report));
     }
 
     private Report findReport(UUID id) {
         return reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Report not found"));
+    }
+
+    private AdminReportView toAdminView(Report report) {
+        ReporterSummary reporter = userRepository.findById(report.getReporterId())
+                .map(u -> new ReporterSummary(u.getId(), u.getStudentNumber(), u.getFullName()))
+                .orElse(new ReporterSummary(report.getReporterId(), "unknown", "Deleted account"));
+
+        TargetSummary target = switch (report.getTargetType()) {
+            case LISTING -> resolveListingTarget(report.getTargetId());
+            case USER -> resolveUserTarget(report.getTargetId());
+        };
+
+        return AdminReportView.of(report, reporter, target);
+    }
+
+    private TargetSummary resolveListingTarget(UUID listingId) {
+        return listingRepository.findById(listingId)
+                .map(listing -> new TargetSummary(
+                        "LISTING", listing.getId(), listing.getName(), businessName(listing)))
+                .orElse(new TargetSummary("LISTING", listingId, "Deleted listing", null));
+    }
+
+    private TargetSummary resolveUserTarget(UUID userId) {
+        return userRepository.findById(userId)
+                .map(user -> new TargetSummary(
+                        "USER", user.getId(), user.getFullName(), "Student #" + user.getStudentNumber()))
+                .orElse(new TargetSummary("USER", userId, "Deleted account", null));
+    }
+
+    private String businessName(Listing listing) {
+        return businessRepository.findById(listing.getBusinessId())
+                .map(Business::getBusinessName)
+                .orElse("Unknown business");
     }
 }

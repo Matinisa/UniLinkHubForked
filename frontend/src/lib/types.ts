@@ -56,3 +56,50 @@ export interface ReportDTO {
   createdAt: string;
   resolvedAt: string | null;
 }
+
+export type ReportStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
+export type ReportReason = "MISREPRESENTATION" | "NON_DELIVERY" | "INAPPROPRIATE_CONDUCT" | "SPAM" | "OTHER";
+
+export interface ReporterSummary {
+  id: string;
+  studentNumber: string;
+  fullName: string;
+}
+
+export interface TargetSummary {
+  type: "LISTING" | "USER";
+  id: string;
+  label: string;
+  secondaryLabel: string | null;
+}
+
+export interface AdminReportView {
+  id: string;
+  reason: ReportReason;
+  details: string | null;
+  status: ReportStatus;
+  adminNote: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  reporter: ReporterSummary;
+  target: TargetSummary;
+}
+
+export interface ReportStatusCounts {
+  open: number;
+  underReview: number;
+  resolved: number;
+  dismissed: number;
+}
+
+export interface AdminBusinessView {
+  id: string;
+  businessName: string;
+  description: string;
+  category: string;
+  verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+  createdAt: string;
+  updatedAt: string;
+  ownerStudentNumber: string;
+  ownerFullName: string;
+}

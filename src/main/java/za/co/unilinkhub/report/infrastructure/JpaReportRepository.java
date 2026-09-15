@@ -15,4 +15,7 @@ public interface JpaReportRepository extends JpaRepository<Report, UUID>, Report
 
     @Override
     List<Report> findByReporterId(UUID reporterId);
+
+    @Override
+    long countByStatus(ReportStatus status);
 }

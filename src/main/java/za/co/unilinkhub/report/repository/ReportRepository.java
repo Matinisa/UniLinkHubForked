@@ -13,7 +13,11 @@ public interface ReportRepository {
 
     Optional<Report> findById(UUID id);
 
+    List<Report> findAll();
+
     List<Report> findByStatus(ReportStatus status);
 
     List<Report> findByReporterId(UUID reporterId);
+
+    long countByStatus(ReportStatus status);
 }

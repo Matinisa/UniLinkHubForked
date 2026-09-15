@@ -28,6 +28,13 @@ function handleLogout() {
           <RouterLink to="/dashboard" class="text-sm font-medium text-charcoal hover:text-campus-teal">
             Dashboard
           </RouterLink>
+          <RouterLink
+            v-if="auth.isAdmin"
+            to="/admin/reports"
+            class="rounded-full border border-academic-gold bg-academic-gold/15 px-2.5 py-1 text-xs font-semibold text-uni-navy hover:bg-academic-gold/25"
+          >
+            Admin console
+          </RouterLink>
           <button class="btn-secondary text-sm" @click="handleLogout">Log out</button>
         </template>
         <template v-else>

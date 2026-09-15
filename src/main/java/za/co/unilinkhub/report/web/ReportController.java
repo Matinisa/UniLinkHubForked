@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import za.co.unilinkhub.report.application.AdminReportView;
 import za.co.unilinkhub.report.application.ReportDTO;
 import za.co.unilinkhub.report.application.ReportService;
+import za.co.unilinkhub.report.application.ReportStatusCounts;
 import za.co.unilinkhub.report.domain.ReportReason;
 import za.co.unilinkhub.report.domain.ReportStatus;
 import za.co.unilinkhub.report.domain.ReportTargetType;
@@ -54,25 +56,31 @@ public class ReportController {
 
     @GetMapping("/admin/reports")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<ReportDTO> queue(@RequestParam(defaultValue = "OPEN") ReportStatus status) {
+    public List<AdminReportView> queue(@RequestParam(required = false) ReportStatus status) {
         return reportService.queue(status);
+    }
+
+    @GetMapping("/admin/reports/counts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ReportStatusCounts counts() {
+        return reportService.counts();
     }
 
     @PostMapping("/admin/reports/{id}/begin-review")
     @PreAuthorize("hasRole('ADMIN')")
-    public ReportDTO beginReview(@CurrentUser UUID adminId, @PathVariable UUID id) {
+    public AdminReportView beginReview(@CurrentUser UUID adminId, @PathVariable UUID id) {
         return reportService.beginReview(id, adminId);
     }
 
     @PostMapping("/admin/reports/{id}/resolve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ReportDTO resolve(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
+    public AdminReportView resolve(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
         return reportService.resolve(id, adminId, request.note());
     }
 
     @PostMapping("/admin/reports/{id}/dismiss")
     @PreAuthorize("hasRole('ADMIN')")
-    public ReportDTO dismiss(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
+    public AdminReportView dismiss(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
         return reportService.dismiss(id, adminId, request.note());
     }
 }
