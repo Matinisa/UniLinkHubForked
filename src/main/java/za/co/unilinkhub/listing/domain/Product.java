@@ -32,7 +32,9 @@ public class Product extends Listing {
     public void updateStock(int quantity) {
         this.stockQuantity = quantity;
         if (quantity <= 0) {
-            deactivate();
+            markSoldOut();
+        } else if (getStatus() == ListingStatus.SOLD_OUT) {
+            reactivate();
         }
     }
 

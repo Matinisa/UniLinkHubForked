@@ -14,4 +14,6 @@ public interface FollowedBusinessRepository {
     void deleteByUserIdAndBusinessId(UUID userId, UUID businessId);
 
     List<FollowedBusiness> findByUserId(UUID userId);
+
+    long countByBusinessId(UUID businessId);
 }

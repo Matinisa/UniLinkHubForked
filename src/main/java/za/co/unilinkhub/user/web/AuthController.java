@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.security.JwtService;
 import za.co.unilinkhub.security.UserPrincipal;
+import za.co.unilinkhub.user.application.ConfirmEmailChangeUseCase;
 import za.co.unilinkhub.user.application.RegisterUserUseCase;
 import za.co.unilinkhub.user.application.RequestPasswordResetUseCase;
 import za.co.unilinkhub.user.application.ResetPasswordUseCase;
@@ -32,6 +33,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
+    private final ConfirmEmailChangeUseCase confirmEmailChangeUseCase;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -69,5 +71,10 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void resetPassword(@Valid @RequestBody UserRequest.ResetPassword request) {
         resetPasswordUseCase.execute(request.token(), request.newPassword());
+    }
+
+    @GetMapping("/confirm-email-change")
+    public UserResponse confirmEmailChange(@RequestParam String token) {
+        return UserResponse.from(confirmEmailChangeUseCase.execute(token));
     }
 }

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useCategories } from "@/lib/categories";
 import type { ProviderProfileDTO } from "@/lib/types";
 
 const businesses = ref<ProviderProfileDTO[]>([]);
+const categories = useCategories();
 const keyword = ref("");
 const category = ref("");
 const verifiedOnly = ref(false);
@@ -54,7 +56,10 @@ onMounted(search);
 
     <div class="flex flex-col gap-3 sm:flex-row">
       <input v-model="keyword" type="search" placeholder="Search businesses..." class="input-field sm:max-w-sm" />
-      <input v-model="category" type="text" placeholder="Category (e.g. tutoring, printing)" class="input-field sm:max-w-xs" />
+      <select v-model="category" class="input-field sm:max-w-xs">
+        <option value="">All categories</option>
+        <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+      </select>
       <label class="flex items-center gap-2 text-sm text-charcoal">
         <input v-model="verifiedOnly" type="checkbox" class="accent-campus-teal" /> Verified only
       </label>

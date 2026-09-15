@@ -40,6 +40,20 @@ public class ReportService {
                 .toList();
     }
 
+    public List<ReportSummaryView> reportsAgainst(UUID userId) {
+        List<UUID> ownedListingIds = businessRepository.findByOwnerId(userId).stream()
+                .flatMap(b -> listingRepository.findByBusinessId(b.getId()).stream())
+                .map(Listing::getId)
+                .toList();
+
+        return reportRepository.findAll().stream()
+                .filter(r -> (r.getTargetType() == ReportTargetType.USER && r.getTargetId().equals(userId))
+                        || (r.getTargetType() == ReportTargetType.LISTING && ownedListingIds.contains(r.getTargetId())))
+                .sorted(Comparator.comparing(Report::getCreatedAt).reversed())
+                .map(this::toSummaryView)
+                .toList();
+    }
+
     public List<ReportSummaryView> queue(ReportStatus status) {
         List<Report> reports = status == null ? reportRepository.findAll() : reportRepository.findByStatus(status);
         return reports.stream()

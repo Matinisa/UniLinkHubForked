@@ -4,6 +4,7 @@ export interface UserResponse {
   firstName: string;
   lastName: string;
   email: string;
+  pendingEmail: string | null;
   phoneNumber: string | null;
   role: "STUDENT" | "ADMIN";
   accountStatus: "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
@@ -24,7 +25,16 @@ export interface BusinessDTO {
   category: string;
   verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
   imageUrl: string | null;
+  rejectionReason: string | null;
   createdAt: string;
+}
+
+export interface BusinessStatsDTO {
+  totalListings: number;
+  activeListings: number;
+  totalViews: number;
+  totalSaves: number;
+  followerCount: number;
 }
 
 export interface ListingDTO {
@@ -127,4 +137,11 @@ export interface AdminStatsDTO {
   businesses: { pending: number; verified: number; rejected: number };
   listings: { active: number; inactive: number; soldOut: number };
   reports: ReportStatusCounts;
+}
+
+export interface AdminUserDetailDTO {
+  user: UserResponse;
+  businesses: BusinessDTO[];
+  reportsFiled: ReportSummaryView[];
+  reportsReceived: ReportSummaryView[];
 }

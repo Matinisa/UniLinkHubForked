@@ -2,9 +2,15 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import type { BusinessDTO } from "@/lib/types";
+import { useSavedListingsStore } from "@/stores/savedListings";
+import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useCategories } from "@/lib/categories";
+import type { BusinessDTO, ListingDTO, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
+const saved = useSavedListingsStore();
+const followed = useFollowedProvidersStore();
+const categories = useCategories();
 
 // ---- Profile ----
 const profileForm = ref({ firstName: "", lastName: "", phoneNumber: "" });
@@ -132,9 +138,53 @@ async function savePassword() {
   }
 }
 
-onMounted(() => {
+// ---- Change email ----
+const emailForm = ref({ newEmail: "", currentPassword: "" });
+const savingEmail = ref(false);
+const emailStatus = ref("");
+const emailError = ref("");
+
+async function changeEmail() {
+  savingEmail.value = true;
+  emailStatus.value = "";
+  emailError.value = "";
+  try {
+    await api.post("/users/me/change-email", emailForm.value);
+    emailStatus.value = "If that address isn't already in use, a confirmation link has been sent.";
+    emailForm.value = { newEmail: "", currentPassword: "" };
+    await auth.fetchCurrentUser();
+  } catch (err) {
+    emailError.value = extractErrorMessage(err);
+  } finally {
+    savingEmail.value = false;
+  }
+}
+
+// ---- My activity ----
+const activity = ref({ listingsCount: 0, savedCount: 0, followingCount: 0, reportsFiledCount: 0 });
+
+async function loadActivity() {
+  try {
+    const [{ data: listings }, { data: reports }] = await Promise.all([
+      auth.isSeller ? api.get<ListingDTO[]>("/listings/mine") : Promise.resolve({ data: [] as ListingDTO[] }),
+      api.get<ReportSummaryView[]>("/reports/mine"),
+    ]);
+    activity.value = {
+      listingsCount: listings.length,
+      savedCount: saved.listings.length,
+      followingCount: followed.providers.length,
+      reportsFiledCount: reports.length,
+    };
+  } catch {
+    // My activity is a nice-to-have summary; ignore failures here.
+  }
+}
+
+onMounted(async () => {
   resetProfileForm();
-  loadBusinesses();
+  await loadBusinesses();
+  await Promise.all([saved.fetchSaved(), followed.fetchFollowed()]);
+  await loadActivity();
 });
 </script>
 
@@ -172,6 +222,32 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- My activity -->
+    <div class="card space-y-3">
+      <h2 class="font-display text-base font-semibold text-uni-navy">My activity</h2>
+      <div class="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+        <div>
+          <p class="font-display text-xl font-bold text-uni-navy">{{ businesses.length }}</p>
+          <p class="text-[11px] text-medium-grey">Businesses</p>
+        </div>
+        <div>
+          <p class="font-display text-xl font-bold text-uni-navy">{{ activity.listingsCount }}</p>
+          <p class="text-[11px] text-medium-grey">Listings</p>
+        </div>
+        <div>
+          <p class="font-display text-xl font-bold text-uni-navy">{{ activity.savedCount }}</p>
+          <p class="text-[11px] text-medium-grey">Saved</p>
+        </div>
+        <div>
+          <p class="font-display text-xl font-bold text-uni-navy">{{ activity.followingCount }}</p>
+          <p class="text-[11px] text-medium-grey">Following</p>
+        </div>
+      </div>
+      <p class="border-t border-light-grey pt-3 text-xs text-medium-grey">
+        {{ activity.reportsFiledCount }} report{{ activity.reportsFiledCount === 1 ? "" : "s" }} filed
+      </p>
+    </div>
+
     <!-- Business details -->
     <div v-if="auth.isSeller && businesses.length > 0" class="card space-y-3">
       <div class="flex items-center justify-between">
@@ -183,10 +259,11 @@ onMounted(() => {
 
       <div v-if="selectedBusiness?.verificationStatus === 'REJECTED'" class="flex items-start gap-2.5 rounded-control bg-danger/10 p-3">
         <span class="badge bg-danger/15 text-danger shrink-0">Rejected</span>
-        <p class="text-[13px] text-charcoal">
-          This business wasn't approved on its last review. Update the details below if needed,
-          then resubmit for another look.
-        </p>
+        <div class="text-[13px] text-charcoal">
+          <p class="mb-1">This business wasn't approved on its last review:</p>
+          <p v-if="selectedBusiness.rejectionReason" class="italic text-charcoal">"{{ selectedBusiness.rejectionReason }}"</p>
+          <p v-else>Update the details below if needed, then resubmit for another look.</p>
+        </div>
       </div>
 
       <div class="flex items-center gap-3">
@@ -211,7 +288,12 @@ onMounted(() => {
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-medium-grey">Category</label>
-          <input v-model="businessForm.category" class="input-field" />
+          <select v-model="businessForm.category" class="input-field">
+            <option v-if="businessForm.category && !categories.includes(businessForm.category)" :value="businessForm.category">
+              {{ businessForm.category }}
+            </option>
+            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+          </select>
         </div>
         <div>
           <label class="mb-1 block text-xs font-medium text-medium-grey">Status</label>
@@ -244,6 +326,30 @@ onMounted(() => {
           @click="resubmitVerification"
         >
           {{ resubmitting ? "Resubmitting..." : "Resubmit for verification" }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Change email -->
+    <div class="card space-y-3">
+      <h2 class="font-display text-base font-semibold text-uni-navy">Change email</h2>
+      <div v-if="auth.user?.pendingEmail" class="flex items-center gap-2 rounded-control bg-warning/10 p-2.5 text-xs text-charcoal">
+        <span class="badge bg-warning/15 text-warning shrink-0">Pending</span>
+        New address {{ auth.user.pendingEmail }} awaiting verification - check the console link to confirm.
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-medium-grey">New email</label>
+        <input v-model="emailForm.newEmail" type="email" placeholder="new.email@mycput.ac.za" class="input-field" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-medium-grey">Confirm password</label>
+        <input v-model="emailForm.currentPassword" type="password" class="input-field" />
+      </div>
+      <p v-if="emailError" class="text-sm text-danger">{{ emailError }}</p>
+      <p v-else-if="emailStatus" class="text-sm text-success">{{ emailStatus }}</p>
+      <div class="flex justify-end">
+        <button class="btn-primary text-sm" :disabled="savingEmail" @click="changeEmail">
+          {{ savingEmail ? "Sending..." : "Send verification link" }}
         </button>
       </div>
     </div>

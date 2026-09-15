@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useCategories } from "@/lib/categories";
 import type { ListingDTO } from "@/lib/types";
 import ListingCard from "@/components/ListingCard.vue";
 
 const listings = ref<ListingDTO[]>([]);
-const categories = ref<string[]>([]);
+const categories = useCategories();
+const categoryCounts = ref<Record<string, number>>({});
+const trending = ref<ListingDTO[]>([]);
 const keyword = ref("");
 const category = ref("");
 const minPrice = ref("");
@@ -19,13 +22,28 @@ const error = ref("");
 
 let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 
-async function loadCategories() {
+async function loadCategoryCounts() {
   try {
     const { data } = await api.get<ListingDTO[]>("/listings");
-    categories.value = [...new Set(data.map((l) => l.category))].sort();
+    const counts: Record<string, number> = {};
+    for (const l of data) counts[l.category] = (counts[l.category] ?? 0) + 1;
+    categoryCounts.value = counts;
   } catch {
-    // Category chips are a nice-to-have; ignore failures here.
+    // Category tile counts are a nice-to-have; ignore failures here.
   }
+}
+
+async function loadTrending() {
+  try {
+    const { data } = await api.get<ListingDTO[]>("/listings", { params: { sort: "views" } });
+    trending.value = data.slice(0, 4);
+  } catch {
+    // Trending is a nice-to-have; ignore failures here.
+  }
+}
+
+function browseCategory(c: string) {
+  category.value = c;
 }
 
 async function search() {
@@ -70,7 +88,8 @@ watch([keyword, category, minPrice, maxPrice, kind, verifiedOnly, sort], () => {
 });
 
 onMounted(() => {
-  loadCategories();
+  loadCategoryCounts();
+  loadTrending();
   search();
 });
 </script>
@@ -83,6 +102,33 @@ onMounted(() => {
         One trusted, searchable place for everything your fellow students are offering - no more
         scattered WhatsApp groups and lost social posts.
       </p>
+    </div>
+
+    <!-- Browse by category -->
+    <div v-if="categories.length > 0">
+      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Browse by category</h2>
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        <button
+          v-for="c in categories"
+          :key="c"
+          class="card flex flex-col items-center gap-1 py-4 text-center transition hover:shadow-md"
+          @click="browseCategory(c)"
+        >
+          <span class="text-sm font-semibold text-uni-navy">{{ c }}</span>
+          <span class="text-xs text-medium-grey">{{ categoryCounts[c] ?? 0 }} listings</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Trending -->
+    <div v-if="trending.length > 0">
+      <div class="mb-3 flex items-center gap-2">
+        <span class="text-lg">🔥</span>
+        <h2 class="font-display text-lg font-semibold text-uni-navy">Trending this week</h2>
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ListingCard v-for="listing in trending" :key="listing.id" :listing="listing" />
+      </div>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row">

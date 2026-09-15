@@ -17,4 +17,7 @@ public interface JpaFollowedBusinessRepository extends JpaRepository<FollowedBus
 
     @Override
     List<FollowedBusiness> findByUserId(UUID userId);
+
+    @Override
+    long countByBusinessId(UUID businessId);
 }

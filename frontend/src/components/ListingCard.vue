@@ -14,8 +14,24 @@ function formatPrice(price: number) {
 </script>
 
 <template>
-  <RouterLink :to="`/listings/${listing.id}`" class="card relative flex flex-col gap-2 overflow-hidden p-0 transition hover:shadow-md">
+  <RouterLink
+    :to="`/listings/${listing.id}`"
+    class="card relative flex flex-col gap-2 overflow-hidden p-0 transition hover:shadow-md"
+    :class="{ 'opacity-70': listing.status !== 'ACTIVE' }"
+  >
     <img v-if="listing.imageUrl" :src="listing.imageUrl" alt="" class="h-32 w-full object-cover" />
+    <span
+      v-if="listing.status === 'SOLD_OUT'"
+      class="badge absolute left-2.5 top-2.5 bg-medium-grey/90 text-white"
+    >
+      Sold out
+    </span>
+    <span
+      v-else-if="listing.status === 'INACTIVE'"
+      class="badge absolute left-2.5 top-2.5 bg-danger/90 text-white"
+    >
+      Inactive
+    </span>
     <button
       v-if="auth.isAuthenticated"
       class="absolute right-2.5 top-2.5 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/90"

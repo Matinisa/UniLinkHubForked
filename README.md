@@ -28,23 +28,40 @@ packages they started as.
   to click the link from), the admin console can also approve a pending account directly.
 - Self-service "Forgot password" flow (request a reset code, then reset with it) — same
   console-logged-code pattern as email verification, since there's no real email delivery.
+- Self-service "Change email" — password-confirmed, with the new address re-verified via the
+  same console-logged-link pattern before it takes effect.
 - Single-account model: any student can call "Become a Seller" from their dashboard rather
   than registering a separate seller account.
 - Register/manage a business, request verification, and resubmit for another review if
   rejected (edit details from Account Settings, then resubmit).
 - Create/edit/deactivate/reactivate Product or Service listings, editable inline from the
   dashboard (title, category, description, price, stock/duration/availability, status, and an
-  optional image URL for products).
+  optional image URL for products) - plus a unified "My listings" table across all of a
+  seller's businesses.
+- A fixed suggested category taxonomy (`GET /api/categories`) offered as a dropdown everywhere
+  a listing or business category is set, so values can't drift into near-duplicates
+  ("Printing" vs "printing").
+- Product stock hitting zero now marks the listing SOLD_OUT (shown distinctly from a
+  deliberately-paused INACTIVE listing) instead of silently deactivating it, and automatically
+  clears back to ACTIVE once restocked.
 - Public browse with keyword/category search, price range, product/service type, verified-
-  sellers-only, and sort (newest, price asc/desc, most viewed); per-listing view counts.
+  sellers-only, and sort (newest, price asc/desc, most viewed); per-listing view counts, a
+  "Browse by category" tile grid, and a "Trending this week" (most-viewed) section.
 - Provider directory ("Browse businesses") — a public page listing every non-rejected
   business, with keyword/category search and a verified-only filter, linking through to each
-  provider's profile.
+  provider's profile; each profile also shows other verified businesses in the same category.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
-  resolves reporter/target ids into names for display, and a status-counts endpoint.
-- Business verification: admin can list pending businesses and verify/reject them.
+  resolves reporter/target ids into names for display, a status-counts endpoint, and a
+  "N total reports on this target" context banner when reviewing.
+- Business verification: admin can browse the full verification history (all/pending/
+  verified/rejected, searchable) rather than just a pending queue, expand a business to see
+  its submitted listings before deciding, and reject with a reason the seller sees on their
+  Account Settings page before resubmitting.
 - Student account management: admin can view/search every account (not just pending ones),
-  approve a pending signup, and suspend or reactivate any student account.
+  approve a pending signup, suspend or reactivate any student account, and expand an account
+  to see its businesses and the reports it filed/received.
+- Seller business performance: listings/views/saves/follower counts per business on the
+  dashboard.
 - Follow a provider - heart-style "Follow" button on a provider's profile, with a "Providers
   you follow" section on the buyer dashboard, mirroring the saved-listings pattern.
 - Business logo (optional image URL) shown on directory cards and the provider profile header.
@@ -52,10 +69,8 @@ packages they started as.
   listing's detail page.
 - Listing social proof: view count and "N students saved this" shown on the listing detail
   page, plus how long ago it was listed.
-- Report history context: when reviewing a report, admins see how many total reports exist
-  against that same target.
-- Admin business verification drilldown: expand a pending business to see its submitted
-  listings before deciding to verify or reject.
+- A "My activity" summary (businesses, listings, saved, following, reports filed) on Account
+  Settings.
 - A proper 404 page for unmatched routes instead of a blank screen.
 - Saved/favourited listings (heart toggle on any listing card or the listing detail page),
   recently viewed listings (tracked client-side, per browser), and a "your reports" status
@@ -67,10 +82,11 @@ packages they started as.
 - Admin overview: a stats tab (students, businesses, listings, and reports, each broken down
   by status) alongside the existing report queue, business verification, and student account
   tabs.
-- A functional Vue UI for all of the above: browse with filters, provider directory, listing
-  detail + report, provider profile, login/register, forgot/reset password, account settings,
-  a combined buyer/seller dashboard, and an admin console (overview, report queue, business
-  verification, student account management) gated by role.
+- A functional Vue UI for all of the above: browse with filters/category tiles/trending,
+  provider directory, listing detail + report, provider profile, login/register, forgot/reset
+  password, account settings, a combined buyer/seller dashboard, a unified "My listings" page,
+  and an admin console (overview, report queue, business verification, student account
+  management) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

@@ -29,6 +29,9 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     Optional<User> findByPasswordResetToken(String passwordResetToken);
 
     @Override
+    Optional<User> findByEmailChangeToken(String emailChangeToken);
+
+    @Override
     List<User> findByAccountStatus(AccountStatus accountStatus);
 
     @Override

@@ -7,9 +7,11 @@ import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.common.exception.UnauthorizedException;
+import za.co.unilinkhub.follow.repository.FollowedBusinessRepository;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.repository.ListingRepository;
+import za.co.unilinkhub.saved.application.SavedListingService;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 
@@ -24,6 +26,8 @@ public class BusinessService {
     private final BusinessRepository businessRepository;
     private final ListingRepository listingRepository;
     private final UserService userService;
+    private final SavedListingService savedListingService;
+    private final FollowedBusinessRepository followedBusinessRepository;
 
     public BusinessDTO create(UUID ownerId, String businessName, String description, String category) {
         // Becoming a seller and registering a first business happen together for the MVP flow.
@@ -85,13 +89,6 @@ public class BusinessService {
         );
     }
 
-    public List<AdminBusinessView> listByStatus(VerificationStatus status) {
-        return businessRepository.findByVerificationStatus(status).stream()
-                .sorted(Comparator.comparing(Business::getCreatedAt))
-                .map(this::toAdminView)
-                .toList();
-    }
-
     public List<AdminBusinessView> recentlyDecided(int limit) {
         return businessRepository.findByVerificationStatusNot(VerificationStatus.PENDING).stream()
                 .sorted(Comparator.comparing(Business::getUpdatedAt).reversed())
@@ -106,10 +103,49 @@ public class BusinessService {
         return BusinessDTO.from(businessRepository.save(business));
     }
 
-    public BusinessDTO reject(UUID businessId) {
+    public BusinessDTO reject(UUID businessId, String reason) {
         Business business = findById(businessId);
-        business.reject();
+        business.reject(reason);
         return BusinessDTO.from(businessRepository.save(business));
+    }
+
+    public List<AdminBusinessView> listForAdmin(String status, String keyword) {
+        List<Business> businesses = (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status))
+                ? businessRepository.findAll()
+                : businessRepository.findByVerificationStatus(VerificationStatus.valueOf(status.toUpperCase()));
+
+        if (keyword != null && !keyword.isBlank()) {
+            String needle = keyword.toLowerCase();
+            businesses = businesses.stream()
+                    .filter(b -> b.getBusinessName().toLowerCase().contains(needle)
+                            || b.getCategory().toLowerCase().contains(needle))
+                    .toList();
+        }
+
+        return businesses.stream()
+                .sorted(Comparator.comparing(Business::getCreatedAt).reversed())
+                .map(this::toAdminView)
+                .toList();
+    }
+
+    public BusinessStatsDTO getStats(UUID businessId, UUID requesterId) {
+        Business business = findOwned(businessId, requesterId);
+        List<Listing> listings = listingRepository.findByBusinessId(business.getId());
+
+        long activeListings = listings.stream().filter(l -> l.getStatus() == ListingStatus.ACTIVE).count();
+        long totalViews = listings.stream().mapToLong(Listing::getViewCount).sum();
+        long totalSaves = listings.stream().mapToLong(l -> savedListingService.countSaves(l.getId())).sum();
+        long followerCount = followedBusinessRepository.countByBusinessId(business.getId());
+
+        return new BusinessStatsDTO(listings.size(), activeListings, totalViews, totalSaves, followerCount);
+    }
+
+    public List<ProviderProfileDTO> listSimilar(UUID businessId) {
+        Business business = findById(businessId);
+        return listPublic(null, business.getCategory(), false).stream()
+                .filter(p -> !p.businessId().equals(businessId))
+                .limit(4)
+                .toList();
     }
 
     private Business findById(UUID id) {

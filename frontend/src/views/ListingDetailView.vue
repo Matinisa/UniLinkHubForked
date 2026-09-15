@@ -78,6 +78,8 @@ onMounted(load);
       <div class="flex items-start justify-between gap-2">
         <h1 class="font-display text-2xl font-bold text-uni-navy">{{ listing.name }}</h1>
         <div class="flex shrink-0 items-center gap-2">
+          <span v-if="listing.status === 'SOLD_OUT'" class="badge bg-medium-grey/15 text-medium-grey">Sold out</span>
+          <span v-else-if="listing.status === 'INACTIVE'" class="badge bg-danger/15 text-danger">Inactive</span>
           <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
           <button
             v-if="auth.isAuthenticated"

@@ -18,4 +18,6 @@ public interface BusinessRepository {
     List<Business> findByVerificationStatus(VerificationStatus status);
 
     List<Business> findByVerificationStatusNot(VerificationStatus status);
+
+    List<Business> findAll();
 }

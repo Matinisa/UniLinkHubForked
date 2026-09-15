@@ -49,6 +49,15 @@ public class ListingService {
         assertOwnership(listing.getBusinessId(), requesterId);
         listing.updateBasicDetails(name, description, category, price);
 
+        // Explicit active/inactive requests apply first; for a Product, the stock update that
+        // follows has the final say (0 in stock always means SOLD_OUT, regardless of what was
+        // requested here) since "in stock" is an objective fact rather than a manual toggle.
+        if ("ACTIVE".equalsIgnoreCase(status)) {
+            listing.reactivate();
+        } else if ("INACTIVE".equalsIgnoreCase(status)) {
+            listing.deactivate();
+        }
+
         if (listing instanceof Product product) {
             if (stockQuantity != null) {
                 product.updateStock(stockQuantity);
@@ -64,11 +73,6 @@ public class ListingService {
             if (availabilitySchedule != null && !availabilitySchedule.isBlank()) {
                 service.updateSchedule(availabilitySchedule);
             }
-        }
-        if ("ACTIVE".equalsIgnoreCase(status)) {
-            listing.reactivate();
-        } else if ("INACTIVE".equalsIgnoreCase(status)) {
-            listing.deactivate();
         }
 
         return ListingDTO.from(listingRepository.save(listing));
@@ -125,6 +129,14 @@ public class ListingService {
 
     public List<ListingDTO> byBusiness(UUID businessId) {
         return listingRepository.findByBusinessId(businessId).stream().map(ListingDTO::from).toList();
+    }
+
+    public List<ListingDTO> listMine(UUID ownerId) {
+        return businessRepository.findByOwnerId(ownerId).stream()
+                .flatMap(b -> listingRepository.findByBusinessId(b.getId()).stream())
+                .sorted(Comparator.comparing(Listing::getCreatedAt).reversed())
+                .map(ListingDTO::from)
+                .toList();
     }
 
     private Listing findListing(UUID id) {

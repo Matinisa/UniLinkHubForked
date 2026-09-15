@@ -5,6 +5,7 @@ import AdminNav from "@/components/AdminNav.vue";
 import type {
   AdminBusinessView,
   AdminStatsDTO,
+  AdminUserDetailDTO,
   ListingDTO,
   ReportSummaryView,
   ReportStatus,
@@ -150,11 +151,38 @@ async function act(action: "begin-review" | "resolve" | "dismiss") {
 }
 
 // ---- Business verification ----
-const pending = ref<AdminBusinessView[]>([]);
-const decided = ref<AdminBusinessView[]>([]);
+const allBusinesses = ref<AdminBusinessView[]>([]);
 const businessesLoading = ref(false);
 const actingBusinessId = ref<string | null>(null);
 const businessesError = ref("");
+const businessFilter = ref<"ALL" | "PENDING" | "VERIFIED" | "REJECTED">("PENDING");
+const businessKeyword = ref("");
+
+const businessFilters: { value: "ALL" | "PENDING" | "VERIFIED" | "REJECTED"; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "PENDING", label: "Pending" },
+  { value: "VERIFIED", label: "Verified" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
+function businessCountFor(value: string): number {
+  if (value === "ALL") return allBusinesses.value.length;
+  return allBusinesses.value.filter((b) => b.verificationStatus === value).length;
+}
+
+const filteredBusinesses = computed(() => {
+  let list = allBusinesses.value;
+  if (businessFilter.value !== "ALL") {
+    list = list.filter((b) => b.verificationStatus === businessFilter.value);
+  }
+  const needle = businessKeyword.value.trim().toLowerCase();
+  if (needle) {
+    list = list.filter(
+      (b) => b.businessName.toLowerCase().includes(needle) || b.category.toLowerCase().includes(needle),
+    );
+  }
+  return list;
+});
 
 function relativeDays(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -168,12 +196,8 @@ async function loadBusinesses() {
   businessesLoading.value = true;
   businessesError.value = "";
   try {
-    const [pendingRes, decidedRes] = await Promise.all([
-      api.get<AdminBusinessView[]>("/admin/businesses", { params: { status: "PENDING" } }),
-      api.get<AdminBusinessView[]>("/admin/businesses/recently-decided", { params: { limit: 5 } }),
-    ]);
-    pending.value = pendingRes.data;
-    decided.value = decidedRes.data;
+    const { data } = await api.get<AdminBusinessView[]>("/admin/businesses", { params: { status: "ALL" } });
+    allBusinesses.value = data;
   } catch (err) {
     businessesError.value = extractErrorMessage(err);
   } finally {
@@ -208,11 +232,37 @@ function formatPrice(price: number) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
 }
 
-async function decide(id: string, action: "verify" | "reject") {
+async function verify(id: string) {
   actingBusinessId.value = id;
   businessesError.value = "";
   try {
-    await api.post(`/admin/businesses/${id}/${action}`);
+    await api.post(`/admin/businesses/${id}/verify`);
+    await loadBusinesses();
+  } catch (err) {
+    businessesError.value = extractErrorMessage(err);
+  } finally {
+    actingBusinessId.value = null;
+  }
+}
+
+const rejectingBusinessId = ref<string | null>(null);
+const rejectReason = ref("");
+
+function startReject(id: string) {
+  rejectingBusinessId.value = id;
+  rejectReason.value = "";
+}
+
+function cancelReject() {
+  rejectingBusinessId.value = null;
+}
+
+async function confirmReject(id: string) {
+  actingBusinessId.value = id;
+  businessesError.value = "";
+  try {
+    await api.post(`/admin/businesses/${id}/reject`, { reason: rejectReason.value });
+    rejectingBusinessId.value = null;
     await loadBusinesses();
   } catch (err) {
     businessesError.value = extractErrorMessage(err);
@@ -291,6 +341,29 @@ async function acceptOrChangeAccount(id: string, action: "approve" | "suspend" |
   }
 }
 
+const expandedAccountId = ref<string | null>(null);
+const accountDetail = ref<Record<string, AdminUserDetailDTO>>({});
+const accountDetailLoading = ref<string | null>(null);
+
+async function toggleAccountExpand(id: string) {
+  if (expandedAccountId.value === id) {
+    expandedAccountId.value = null;
+    return;
+  }
+  expandedAccountId.value = id;
+  if (!accountDetail.value[id]) {
+    accountDetailLoading.value = id;
+    try {
+      const { data } = await api.get<AdminUserDetailDTO>(`/admin/users/${id}/detail`);
+      accountDetail.value[id] = data;
+    } catch (err) {
+      accountsError.value = extractErrorMessage(err);
+    } finally {
+      accountDetailLoading.value = null;
+    }
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadStats(), loadCounts(), loadReports(), loadBusinesses(), loadAccounts()]);
 });
@@ -328,7 +401,7 @@ onMounted(async () => {
           @click="activeSection = 'businesses'"
         >
           Business verification
-          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ pending.length }}</span>
+          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ businessCountFor('PENDING') }}</span>
         </button>
         <button
           class="border-b-2 px-1 pb-3 text-sm font-semibold"
@@ -567,93 +640,109 @@ onMounted(async () => {
       </section>
 
       <!-- Business verification section -->
-      <section v-else-if="activeSection === 'businesses'" class="space-y-6">
+      <section v-else-if="activeSection === 'businesses'" class="space-y-5">
         <p v-if="businessesError" class="text-sm text-danger">{{ businessesError }}</p>
         <p v-else-if="businessesLoading" class="text-sm text-medium-grey">Loading...</p>
 
         <template v-else>
-          <div>
-            <div class="mb-3 flex items-center gap-2">
-              <h3 class="font-display text-[15px] font-semibold text-uni-navy">Awaiting review</h3>
-              <span class="badge bg-warning/15 text-warning">{{ pending.length }} pending</span>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="f in businessFilters"
+                :key="f.value"
+                class="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold"
+                :class="businessFilter === f.value ? 'border-campus-teal bg-campus-teal text-white' : 'border-light-grey bg-white text-charcoal hover:border-campus-teal'"
+                @click="businessFilter = f.value"
+              >
+                {{ f.label }} &nbsp;{{ businessCountFor(f.value) }}
+              </button>
             </div>
-
-            <p v-if="pending.length === 0" class="card text-sm text-medium-grey">Nothing waiting on review right now.</p>
-
-            <div v-else class="flex flex-col gap-3">
-              <div v-for="b in pending" :key="b.id" class="card space-y-4 p-[18px]">
-                <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
-                  <div class="flex-1">
-                    <div class="mb-1.5 flex items-center gap-2.5">
-                      <span class="text-base font-semibold text-uni-navy">{{ b.businessName }}</span>
-                      <span class="badge bg-academic-gold/20 text-uni-navy">{{ b.category }}</span>
-                    </div>
-                    <p class="mb-2 text-[13px] leading-relaxed text-charcoal">{{ b.description }}</p>
-                    <p class="text-xs text-medium-grey">
-                      Owner: {{ b.ownerFullName }} &middot; #{{ b.ownerStudentNumber }} &middot; Submitted {{ relativeDays(b.createdAt) }}
-                      &middot;
-                      <button class="font-medium text-campus-teal underline" @click="toggleBusinessExpand(b.id)">
-                        {{ expandedBusinessId === b.id ? "Hide listings" : "View listings" }}
-                      </button>
-                    </p>
-                  </div>
-                  <div class="flex shrink-0 gap-2.5">
-                    <button
-                      class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2.5 text-sm font-semibold text-danger disabled:opacity-50"
-                      :disabled="actingBusinessId === b.id"
-                      @click="decide(b.id, 'reject')"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                      :disabled="actingBusinessId === b.id"
-                      @click="decide(b.id, 'verify')"
-                    >
-                      Verify
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="expandedBusinessId === b.id" class="rounded-control border border-light-grey bg-soft-grey p-3">
-                  <p v-if="businessListingsLoading === b.id" class="text-xs text-medium-grey">Loading listings...</p>
-                  <template v-else>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-medium-grey">
-                      Submitted listings ({{ (businessListings[b.id] ?? []).length }})
-                    </p>
-                    <p v-if="(businessListings[b.id] ?? []).length === 0" class="text-sm text-medium-grey">
-                      No listings yet.
-                    </p>
-                    <ul v-else class="space-y-1.5">
-                      <li v-for="l in businessListings[b.id]" :key="l.id" class="flex items-center justify-between text-sm">
-                        <span class="text-charcoal">{{ l.name }}</span>
-                        <span class="font-medium text-campus-teal">{{ formatPrice(l.price) }}</span>
-                      </li>
-                    </ul>
-                  </template>
-                </div>
-              </div>
-            </div>
+            <input v-model="businessKeyword" type="search" placeholder="Search businesses..." class="input-field sm:w-64" />
           </div>
 
-          <div v-if="decided.length > 0">
-            <h3 class="mb-3 font-display text-[15px] font-semibold text-uni-navy">Recently decided</h3>
-            <div class="flex flex-col gap-2">
-              <div
-                v-for="b in decided"
-                :key="b.id"
-                class="flex items-center justify-between rounded-card border border-light-grey bg-white px-4 py-3 opacity-75"
-              >
-                <div class="flex items-center gap-2.5">
-                  <span class="text-sm font-semibold text-uni-navy">{{ b.businessName }}</span>
-                  <span class="text-xs text-medium-grey">{{ b.category }}</span>
+          <p v-if="filteredBusinesses.length === 0" class="card text-sm text-medium-grey">No businesses match this filter.</p>
+
+          <div v-else class="flex flex-col gap-3">
+            <div v-for="b in filteredBusinesses" :key="b.id" class="card space-y-4 p-[18px]">
+              <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                <div class="flex-1">
+                  <div class="mb-1.5 flex items-center gap-2.5">
+                    <span class="text-base font-semibold text-uni-navy">{{ b.businessName }}</span>
+                    <span class="badge bg-academic-gold/20 text-uni-navy">{{ b.category }}</span>
+                    <span
+                      class="badge"
+                      :class="{
+                        'bg-success/15 text-success': b.verificationStatus === 'VERIFIED',
+                        'bg-warning/15 text-warning': b.verificationStatus === 'PENDING',
+                        'bg-danger/15 text-danger': b.verificationStatus === 'REJECTED',
+                      }"
+                    >
+                      {{ b.verificationStatus }}
+                    </span>
+                  </div>
+                  <p class="mb-2 text-[13px] leading-relaxed text-charcoal">{{ b.description }}</p>
+                  <p class="text-xs text-medium-grey">
+                    Owner: {{ b.ownerFullName }} &middot; #{{ b.ownerStudentNumber }} &middot;
+                    {{ b.verificationStatus === "PENDING" ? "Submitted" : "Updated" }} {{ relativeDays(b.updatedAt) }}
+                    &middot;
+                    <button class="font-medium text-campus-teal underline" @click="toggleBusinessExpand(b.id)">
+                      {{ expandedBusinessId === b.id ? "Hide listings" : "View listings" }}
+                    </button>
+                  </p>
                 </div>
-                <span
-                  class="badge"
-                  :class="b.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'"
-                >
-                  {{ b.verificationStatus === "VERIFIED" ? "Verified" : "Rejected" }}
-                </span>
+                <div v-if="b.verificationStatus === 'PENDING'" class="flex shrink-0 gap-2.5">
+                  <button
+                    class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2.5 text-sm font-semibold text-danger disabled:opacity-50"
+                    :disabled="actingBusinessId === b.id"
+                    @click="startReject(b.id)"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                    :disabled="actingBusinessId === b.id"
+                    @click="verify(b.id)"
+                  >
+                    Verify
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="rejectingBusinessId === b.id" class="space-y-2 rounded-control border border-danger/30 bg-danger/5 p-3">
+                <textarea
+                  v-model="rejectReason"
+                  rows="2"
+                  placeholder="Why is this being rejected?"
+                  class="input-field resize-y"
+                ></textarea>
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary text-sm" @click="cancelReject">Cancel</button>
+                  <button
+                    class="inline-flex items-center justify-center rounded-control bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    :disabled="actingBusinessId === b.id"
+                    @click="confirmReject(b.id)"
+                  >
+                    Reject with reason
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="expandedBusinessId === b.id" class="rounded-control border border-light-grey bg-soft-grey p-3">
+                <p v-if="businessListingsLoading === b.id" class="text-xs text-medium-grey">Loading listings...</p>
+                <template v-else>
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-medium-grey">
+                    Listings ({{ (businessListings[b.id] ?? []).length }})
+                  </p>
+                  <p v-if="(businessListings[b.id] ?? []).length === 0" class="text-sm text-medium-grey">
+                    No listings yet.
+                  </p>
+                  <ul v-else class="space-y-1.5">
+                    <li v-for="l in businessListings[b.id]" :key="l.id" class="flex items-center justify-between text-sm">
+                      <span class="text-charcoal">{{ l.name }}</span>
+                      <span class="font-medium text-campus-teal">{{ formatPrice(l.price) }}</span>
+                    </li>
+                  </ul>
+                </template>
               </div>
             </div>
           </div>
@@ -694,54 +783,113 @@ onMounted(async () => {
             <div
               v-for="u in filteredAccounts"
               :key="u.id"
-              class="card flex flex-col items-start justify-between gap-3 p-[18px] sm:flex-row sm:items-center"
+              class="card space-y-3 p-[18px]"
               :class="u.accountStatus === 'SUSPENDED' ? 'border-danger/30 bg-danger/5' : ''"
             >
-              <div class="flex-1">
-                <div class="mb-1 flex items-center gap-2.5">
-                  <span class="text-base font-semibold text-uni-navy">{{ u.firstName }} {{ u.lastName }}</span>
-                  <span
-                    class="badge"
-                    :class="{
-                      'bg-success/15 text-success': u.accountStatus === 'ACTIVE',
-                      'bg-warning/15 text-warning': u.accountStatus === 'PENDING_VERIFICATION',
-                      'bg-danger/15 text-danger': u.accountStatus === 'SUSPENDED',
-                      'bg-medium-grey/15 text-medium-grey': u.accountStatus === 'DEACTIVATED',
-                    }"
-                  >
-                    {{ u.accountStatus === "PENDING_VERIFICATION" ? "Pending" : u.accountStatus.charAt(0) + u.accountStatus.slice(1).toLowerCase() }}
-                  </span>
-                  <span v-if="u.seller" class="badge bg-sky-blue/20 text-uni-navy">Seller</span>
-                  <span v-if="u.role === 'ADMIN'" class="badge bg-academic-gold/20 text-uni-navy">Admin</span>
+              <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                <div class="flex-1">
+                  <div class="mb-1 flex items-center gap-2.5">
+                    <span class="text-base font-semibold text-uni-navy">{{ u.firstName }} {{ u.lastName }}</span>
+                    <span
+                      class="badge"
+                      :class="{
+                        'bg-success/15 text-success': u.accountStatus === 'ACTIVE',
+                        'bg-warning/15 text-warning': u.accountStatus === 'PENDING_VERIFICATION',
+                        'bg-danger/15 text-danger': u.accountStatus === 'SUSPENDED',
+                        'bg-medium-grey/15 text-medium-grey': u.accountStatus === 'DEACTIVATED',
+                      }"
+                    >
+                      {{ u.accountStatus === "PENDING_VERIFICATION" ? "Pending" : u.accountStatus.charAt(0) + u.accountStatus.slice(1).toLowerCase() }}
+                    </span>
+                    <span v-if="u.seller" class="badge bg-sky-blue/20 text-uni-navy">Seller</span>
+                    <span v-if="u.role === 'ADMIN'" class="badge bg-academic-gold/20 text-uni-navy">Admin</span>
+                  </div>
+                  <p class="text-[13px] text-medium-grey">
+                    {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
+                    &middot;
+                    <button class="font-medium text-campus-teal underline" @click="toggleAccountExpand(u.id)">
+                      {{ expandedAccountId === u.id ? "Hide details" : "View details" }}
+                    </button>
+                  </p>
                 </div>
-                <p class="text-[13px] text-medium-grey">
-                  {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
-                </p>
+                <button
+                  v-if="u.accountStatus === 'PENDING_VERIFICATION'"
+                  class="btn-primary text-sm"
+                  :disabled="actingAccountId === u.id"
+                  @click="acceptOrChangeAccount(u.id, 'approve')"
+                >
+                  Approve
+                </button>
+                <button
+                  v-else-if="u.accountStatus === 'SUSPENDED'"
+                  class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  :disabled="actingAccountId === u.id"
+                  @click="acceptOrChangeAccount(u.id, 'reactivate')"
+                >
+                  Reactivate
+                </button>
+                <button
+                  v-else-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
+                  class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50"
+                  :disabled="actingAccountId === u.id"
+                  @click="acceptOrChangeAccount(u.id, 'suspend')"
+                >
+                  Suspend
+                </button>
               </div>
-              <button
-                v-if="u.accountStatus === 'PENDING_VERIFICATION'"
-                class="btn-primary text-sm"
-                :disabled="actingAccountId === u.id"
-                @click="acceptOrChangeAccount(u.id, 'approve')"
-              >
-                Approve
-              </button>
-              <button
-                v-else-if="u.accountStatus === 'SUSPENDED'"
-                class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                :disabled="actingAccountId === u.id"
-                @click="acceptOrChangeAccount(u.id, 'reactivate')"
-              >
-                Reactivate
-              </button>
-              <button
-                v-else-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
-                class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50"
-                :disabled="actingAccountId === u.id"
-                @click="acceptOrChangeAccount(u.id, 'suspend')"
-              >
-                Suspend
-              </button>
+
+              <div v-if="expandedAccountId === u.id" class="space-y-3 rounded-control border border-light-grey bg-soft-grey p-3">
+                <p v-if="accountDetailLoading === u.id" class="text-xs text-medium-grey">Loading...</p>
+                <template v-else-if="accountDetail[u.id]">
+                  <div class="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p class="font-display text-lg font-bold text-uni-navy">{{ accountDetail[u.id].businesses.length }}</p>
+                      <p class="text-[11px] text-medium-grey">Businesses</p>
+                    </div>
+                    <div>
+                      <p class="font-display text-lg font-bold text-uni-navy">{{ accountDetail[u.id].reportsFiled.length }}</p>
+                      <p class="text-[11px] text-medium-grey">Reports filed</p>
+                    </div>
+                    <div>
+                      <p class="font-display text-lg font-bold text-danger">{{ accountDetail[u.id].reportsReceived.length }}</p>
+                      <p class="text-[11px] text-medium-grey">Reports received</p>
+                    </div>
+                  </div>
+
+                  <div v-if="accountDetail[u.id].businesses.length > 0" class="space-y-1.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-medium-grey">Businesses</p>
+                    <div
+                      v-for="b in accountDetail[u.id].businesses"
+                      :key="b.id"
+                      class="flex items-center justify-between rounded-control bg-white px-3 py-2 text-sm"
+                    >
+                      <span class="text-charcoal">{{ b.businessName }}</span>
+                      <span
+                        class="badge"
+                        :class="{
+                          'bg-success/15 text-success': b.verificationStatus === 'VERIFIED',
+                          'bg-warning/15 text-warning': b.verificationStatus === 'PENDING',
+                          'bg-danger/15 text-danger': b.verificationStatus === 'REJECTED',
+                        }"
+                      >
+                        {{ b.verificationStatus }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div v-if="accountDetail[u.id].reportsReceived.length > 0" class="space-y-1.5">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-medium-grey">Reports received</p>
+                    <div
+                      v-for="r in accountDetail[u.id].reportsReceived"
+                      :key="r.id"
+                      class="rounded-control bg-danger/10 px-3 py-2 text-sm text-charcoal"
+                    >
+                      {{ REASON_LABELS[r.reason] ?? r.reason }} on "{{ r.target.label }}" &middot;
+                      <span class="font-medium">{{ STATUS_LABELS[r.status] }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </template>

@@ -95,6 +95,10 @@ public abstract class Listing {
         this.status = ListingStatus.ACTIVE;
     }
 
+    public void markSoldOut() {
+        this.status = ListingStatus.SOLD_OUT;
+    }
+
     public void recordView() {
         this.viewCount++;
     }

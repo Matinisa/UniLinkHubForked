@@ -44,4 +44,10 @@ public class UserRequest {
             @NotBlank String newPassword
     ) {
     }
+
+    public record ChangeEmail(
+            @NotBlank @Email String newEmail,
+            @NotBlank String currentPassword
+    ) {
+    }
 }

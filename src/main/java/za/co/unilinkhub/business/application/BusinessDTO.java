@@ -13,13 +13,15 @@ public record BusinessDTO(
         String category,
         String verificationStatus,
         String imageUrl,
+        String rejectionReason,
         LocalDateTime createdAt
 ) {
     public static BusinessDTO from(Business business) {
         return new BusinessDTO(
                 business.getId(), business.getOwnerId(), business.getBusinessName(),
                 business.getDescription(), business.getCategory(),
-                business.getVerificationStatus().name(), business.getImageUrl(), business.getCreatedAt()
+                business.getVerificationStatus().name(), business.getImageUrl(),
+                business.getRejectionReason(), business.getCreatedAt()
         );
     }
 }

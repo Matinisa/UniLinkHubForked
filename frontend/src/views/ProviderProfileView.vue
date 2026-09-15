@@ -13,6 +13,7 @@ const followed = useFollowedProvidersStore();
 
 const profile = ref<ProviderProfileDTO | null>(null);
 const listings = ref<ListingDTO[]>([]);
+const similarBusinesses = ref<ProviderProfileDTO[]>([]);
 const error = ref("");
 const reportOpen = ref(false);
 const reportReason = ref("MISREPRESENTATION");
@@ -32,6 +33,9 @@ async function load() {
     ]);
     profile.value = profileRes.data;
     listings.value = listingsRes.data.filter((l) => l.status === "ACTIVE");
+
+    const { data: similar } = await api.get<ProviderProfileDTO[]>(`/businesses/${businessId}/similar`);
+    similarBusinesses.value = similar;
   } catch (err) {
     error.value = extractErrorMessage(err);
   }
@@ -163,6 +167,29 @@ onMounted(load);
       <p v-if="listings.length === 0" class="card text-sm text-medium-grey">No active listings right now.</p>
       <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ListingCard v-for="listing in listings" :key="listing.id" :listing="listing" />
+      </div>
+    </div>
+
+    <div v-if="similarBusinesses.length > 0">
+      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Similar businesses in {{ profile.category }}</h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <RouterLink
+          v-for="b in similarBusinesses"
+          :key="b.businessId"
+          :to="`/providers/${b.businessId}`"
+          class="card space-y-2 transition hover:shadow-md"
+        >
+          <div class="flex items-center justify-between">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">{{ b.businessName }}</h3>
+            <span
+              class="badge"
+              :class="b.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'"
+            >
+              {{ b.verificationStatus === "VERIFIED" ? "Verified" : "Pending" }}
+            </span>
+          </div>
+          <p class="text-xs text-medium-grey">{{ b.activeListingCount }} active listing{{ b.activeListingCount === 1 ? "" : "s" }}</p>
+        </RouterLink>
       </div>
     </div>
   </section>

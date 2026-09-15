@@ -25,6 +25,8 @@ public interface UserRepository {
 
     Optional<User> findByPasswordResetToken(String passwordResetToken);
 
+    Optional<User> findByEmailChangeToken(String emailChangeToken);
+
     List<User> findByAccountStatus(AccountStatus accountStatus);
 
     List<User> findAll();

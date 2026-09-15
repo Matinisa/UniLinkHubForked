@@ -5,12 +5,14 @@ import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useCategories } from "@/lib/categories";
 import ListingCard from "@/components/ListingCard.vue";
-import type { BusinessDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
+import type { BusinessDTO, BusinessStatsDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
 const followed = useFollowedProvidersStore();
+const categories = useCategories();
 
 const businesses = ref<BusinessDTO[]>([]);
 const listingsByBusiness = ref<Record<string, ListingDTO[]>>({});
@@ -64,6 +66,12 @@ const STATUS_LABELS: Record<ReportStatus, string> = {
   DISMISSED: "Dismissed",
 };
 
+const LISTING_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  SOLD_OUT: "Sold out",
+};
+
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.round(diffMs / 60000);
@@ -88,14 +96,20 @@ async function loadReports() {
 }
 
 // ---- Seller ----
+const statsByBusiness = ref<Record<string, BusinessStatsDTO>>({});
+
 async function loadBusinesses() {
   if (!auth.isSeller) return;
   try {
     const { data } = await api.get<BusinessDTO[]>("/businesses/mine");
     businesses.value = data;
     for (const business of data) {
-      const { data: listings } = await api.get<ListingDTO[]>(`/listings/business/${business.id}`);
+      const [{ data: listings }, { data: stats }] = await Promise.all([
+        api.get<ListingDTO[]>(`/listings/business/${business.id}`),
+        api.get<BusinessStatsDTO>(`/businesses/${business.id}/stats`),
+      ]);
       listingsByBusiness.value[business.id] = listings;
+      statsByBusiness.value[business.id] = stats;
     }
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -346,7 +360,10 @@ onMounted(async () => {
 
     <template v-else>
       <div class="card space-y-3">
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Your businesses</h2>
+        <div class="flex items-center justify-between">
+          <h2 class="font-display text-lg font-semibold text-uni-navy">Your businesses</h2>
+          <RouterLink to="/my-listings" class="text-xs font-medium text-campus-teal underline">View all listings &rarr;</RouterLink>
+        </div>
 
         <div v-if="businesses.length === 0" class="text-sm text-medium-grey">
           You haven't registered a business yet - add one below to start listing.
@@ -369,12 +386,31 @@ onMounted(async () => {
             </div>
             <p class="text-sm text-medium-grey">{{ business.category }}</p>
 
+            <div v-if="statsByBusiness[business.id]" class="mt-3 grid grid-cols-4 gap-2 rounded-control bg-soft-grey p-3 text-center">
+              <div>
+                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalListings }}</p>
+                <p class="text-[11px] text-medium-grey">Listings</p>
+              </div>
+              <div>
+                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalViews }}</p>
+                <p class="text-[11px] text-medium-grey">Views</p>
+              </div>
+              <div>
+                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalSaves }}</p>
+                <p class="text-[11px] text-medium-grey">Saves</p>
+              </div>
+              <div>
+                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].followerCount }}</p>
+                <p class="text-[11px] text-medium-grey">Followers</p>
+              </div>
+            </div>
+
             <ul class="mt-2 space-y-2">
               <li v-for="listing in listingsByBusiness[business.id] ?? []" :key="listing.id">
                 <!-- Normal row -->
                 <div v-if="editingListingId !== listing.id" class="flex items-center justify-between rounded-control bg-soft-grey px-3 py-2 text-sm">
                   <span :class="{ 'text-medium-grey line-through': listing.status === 'INACTIVE' }">
-                    {{ listing.name }} · {{ listing.status }} · {{ listing.viewCount }} views
+                    {{ listing.name }} · {{ LISTING_STATUS_LABELS[listing.status] ?? listing.status }} · {{ listing.viewCount }} views
                   </span>
                   <div class="flex items-center gap-3">
                     <button class="text-xs font-medium text-campus-teal underline" @click="startEdit(listing)">Edit</button>
@@ -384,6 +420,13 @@ onMounted(async () => {
                       @click="deactivateListing(listing.id)"
                     >
                       Deactivate
+                    </button>
+                    <button
+                      v-else-if="listing.status === 'SOLD_OUT'"
+                      class="text-xs font-medium text-campus-teal underline"
+                      @click="startEdit(listing)"
+                    >
+                      Restock
                     </button>
                     <button v-else class="text-xs font-medium text-success underline" @click="reactivateListing(listing.id)">
                       Reactivate
@@ -399,7 +442,12 @@ onMounted(async () => {
                   </div>
                   <div class="grid gap-2 sm:grid-cols-2">
                     <input v-model="editForm.name" class="input-field sm:col-span-2" placeholder="Title" />
-                    <input v-model="editForm.category" class="input-field" placeholder="Category" />
+                    <select v-model="editForm.category" class="input-field">
+                      <option v-if="editForm.category && !categories.includes(editForm.category)" :value="editForm.category">
+                        {{ editForm.category }}
+                      </option>
+                      <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+                    </select>
                     <select v-model="editForm.status" class="input-field">
                       <option value="ACTIVE">Active</option>
                       <option value="INACTIVE">Inactive</option>
@@ -449,7 +497,10 @@ onMounted(async () => {
 
         <form class="grid gap-2 border-t border-light-grey pt-3 sm:grid-cols-3" @submit.prevent="createBusiness">
           <input v-model="newBusiness.businessName" required placeholder="Business name" class="input-field" />
-          <input v-model="newBusiness.category" required placeholder="Category" class="input-field" />
+          <select v-model="newBusiness.category" required class="input-field">
+            <option value="" disabled>Select category</option>
+            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+          </select>
           <input v-model="newBusiness.description" required placeholder="Short description" class="input-field" />
           <button type="submit" class="btn-secondary sm:col-span-3" :disabled="creatingBusiness">
             {{ creatingBusiness ? "Adding..." : "Add business" }}
@@ -470,7 +521,10 @@ onMounted(async () => {
             <option value="PRODUCT">Product</option>
             <option value="SERVICE">Service</option>
           </select>
-          <input v-model="newListing.category" required placeholder="Category" class="input-field" />
+          <select v-model="newListing.category" required class="input-field">
+            <option value="" disabled>Select category</option>
+            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+          </select>
           <input v-model="newListing.name" required placeholder="Title" class="input-field sm:col-span-2" />
           <textarea
             v-model="newListing.description"

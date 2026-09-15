@@ -11,6 +11,7 @@ public record UserResponse(
         String firstName,
         String lastName,
         String email,
+        String pendingEmail,
         String phoneNumber,
         String role,
         String accountStatus,
@@ -20,7 +21,7 @@ public record UserResponse(
     public static UserResponse from(UserDTO dto) {
         return new UserResponse(
                 dto.id(), dto.studentNumber(), dto.firstName(), dto.lastName(),
-                dto.email(), dto.phoneNumber(), dto.role(), dto.accountStatus(),
+                dto.email(), dto.pendingEmail(), dto.phoneNumber(), dto.role(), dto.accountStatus(),
                 dto.seller(), dto.createdAt()
         );
     }

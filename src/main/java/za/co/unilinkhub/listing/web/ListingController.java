@@ -121,4 +121,9 @@ public class ListingController {
     public List<ListingDTO> savedMine(@CurrentUser UUID userId) {
         return savedListingService.mine(userId);
     }
+
+    @GetMapping("/mine")
+    public List<ListingDTO> mine(@CurrentUser UUID userId) {
+        return listingService.listMine(userId);
+    }
 }

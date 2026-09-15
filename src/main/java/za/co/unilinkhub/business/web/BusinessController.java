@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.business.application.AdminBusinessView;
 import za.co.unilinkhub.business.application.BusinessDTO;
 import za.co.unilinkhub.business.application.BusinessService;
+import za.co.unilinkhub.business.application.BusinessStatsDTO;
 import za.co.unilinkhub.business.application.ProviderProfileDTO;
-import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.follow.application.FollowService;
 import za.co.unilinkhub.security.CurrentUser;
 
@@ -41,6 +41,9 @@ public class BusinessController {
     }
 
     public record UpdateBusinessRequest(String businessName, String description, String category, String imageUrl) {
+    }
+
+    public record RejectRequest(String reason) {
     }
 
     @PostMapping("/api/businesses")
@@ -82,6 +85,16 @@ public class BusinessController {
         return businessService.getByOwner(userId);
     }
 
+    @GetMapping("/api/businesses/{id}/stats")
+    public BusinessStatsDTO stats(@CurrentUser UUID userId, @PathVariable UUID id) {
+        return businessService.getStats(id, userId);
+    }
+
+    @GetMapping("/api/businesses/{id}/similar")
+    public List<ProviderProfileDTO> similar(@PathVariable UUID id) {
+        return businessService.listSimilar(id);
+    }
+
     @PostMapping("/api/businesses/{id}/follow")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void follow(@CurrentUser UUID userId, @PathVariable UUID id) {
@@ -101,8 +114,9 @@ public class BusinessController {
 
     @GetMapping("/api/admin/businesses")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<AdminBusinessView> pendingQueue(@RequestParam(defaultValue = "PENDING") VerificationStatus status) {
-        return businessService.listByStatus(status);
+    public List<AdminBusinessView> adminBusinesses(@RequestParam(defaultValue = "PENDING") String status,
+                                                     @RequestParam(required = false) String keyword) {
+        return businessService.listForAdmin(status, keyword);
     }
 
     @GetMapping("/api/admin/businesses/recently-decided")
@@ -119,7 +133,7 @@ public class BusinessController {
 
     @PostMapping("/api/admin/businesses/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    public BusinessDTO reject(@PathVariable UUID id) {
-        return businessService.reject(id);
+    public BusinessDTO reject(@PathVariable UUID id, @RequestBody(required = false) RejectRequest request) {
+        return businessService.reject(id, request == null ? null : request.reason());
     }
 }

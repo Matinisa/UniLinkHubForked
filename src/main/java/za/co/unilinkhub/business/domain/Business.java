@@ -49,6 +49,9 @@ public class Business {
     @Column(name = "image_url", length = 1000)
     private String imageUrl;
 
+    @Column(name = "rejection_reason", length = 1000)
+    private String rejectionReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -88,13 +91,16 @@ public class Business {
             throw new IllegalStateException("Business is already verified");
         }
         this.verificationStatus = VerificationStatus.PENDING;
+        this.rejectionReason = null;
     }
 
     public void verify() {
         this.verificationStatus = VerificationStatus.VERIFIED;
+        this.rejectionReason = null;
     }
 
-    public void reject() {
+    public void reject(String reason) {
         this.verificationStatus = VerificationStatus.REJECTED;
+        this.rejectionReason = reason;
     }
 }

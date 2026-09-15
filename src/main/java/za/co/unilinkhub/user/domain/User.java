@@ -69,6 +69,12 @@ public class User {
     @Column(name = "password_reset_token", length = 64)
     private String passwordResetToken;
 
+    @Column(name = "pending_email", length = 254)
+    private String pendingEmail;
+
+    @Column(name = "email_change_token", length = 64)
+    private String emailChangeToken;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -137,6 +143,20 @@ public class User {
         }
         this.passwordHash = newPasswordHash;
         this.passwordResetToken = null;
+    }
+
+    public void requestEmailChange(String newEmail, String token) {
+        this.pendingEmail = newEmail;
+        this.emailChangeToken = token;
+    }
+
+    public void confirmEmailChange(String token) {
+        if (this.emailChangeToken == null || !this.emailChangeToken.equals(token)) {
+            throw new IllegalArgumentException("Invalid or expired email change link");
+        }
+        this.email = this.pendingEmail;
+        this.pendingEmail = null;
+        this.emailChangeToken = null;
     }
 
     public void updateProfile(String firstName, String lastName, String phoneNumber) {
