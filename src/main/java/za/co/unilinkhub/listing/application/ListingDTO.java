@@ -20,6 +20,7 @@ public record ListingDTO(
         long viewCount,
         Integer stockQuantity,
         String imageUrl,
+        Integer lowStockThreshold,
         Integer durationMinutes,
         String availabilitySchedule,
         LocalDateTime createdAt,
@@ -27,12 +28,13 @@ public record ListingDTO(
 ) {
     public ListingDTO withSavedCount(long savedCount) {
         return new ListingDTO(id, businessId, type, name, description, category, price, status, viewCount,
-                stockQuantity, imageUrl, durationMinutes, availabilitySchedule, createdAt, savedCount);
+                stockQuantity, imageUrl, lowStockThreshold, durationMinutes, availabilitySchedule, createdAt, savedCount);
     }
 
     public static ListingDTO from(Listing listing) {
         Integer stockQuantity = null;
         String imageUrl = null;
+        Integer lowStockThreshold = null;
         Integer durationMinutes = null;
         String availabilitySchedule = null;
         String type;
@@ -41,6 +43,7 @@ public record ListingDTO(
             type = "PRODUCT";
             stockQuantity = product.getStockQuantity();
             imageUrl = product.getImageUrl();
+            lowStockThreshold = product.getLowStockThreshold();
         } else if (listing instanceof Service service) {
             type = "SERVICE";
             durationMinutes = service.getDurationMinutes();
@@ -53,7 +56,7 @@ public record ListingDTO(
                 listing.getId(), listing.getBusinessId(), type, listing.getName(),
                 listing.getDescription(), listing.getCategory(), listing.getPrice(),
                 listing.getStatus().name(), listing.getViewCount(),
-                stockQuantity, imageUrl, durationMinutes, availabilitySchedule,
+                stockQuantity, imageUrl, lowStockThreshold, durationMinutes, availabilitySchedule,
                 listing.getCreatedAt(), 0
         );
     }

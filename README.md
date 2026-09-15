@@ -19,9 +19,11 @@ to a rationale, and it matches the Spring Boot backend that was already scaffold
 
 ## What's implemented so far
 
-MVP scope only (Project Documentation, Section 11.1) — post-MVP items (ratings, in-app
-messaging, payments, appointments, notifications) are intentionally left as the empty stub
-packages they started as.
+MVP scope (Project Documentation, Section 11.1), plus a few post-MVP items that turned out to
+be small enough to build well beyond that scope: ratings/reviews, in-app notifications, and a
+lightweight booking-request flow for services. Full in-app messaging and payments remain out of
+scope and are still the empty stub packages they started as - a booking request or a review
+comment is the closest thing to messaging here, not a real chat.
 
 - Student registration + email verification (link is logged to the console — no SMTP
   provider is wired up yet) and JWT login. As a fallback to that (since there's no real inbox
@@ -112,6 +114,33 @@ packages they started as.
   password, account settings, a combined buyer/seller dashboard, a unified "My listings" page,
   and an admin console (overview, report queue, business verification, student account
   management) gated by role.
+- In-app notifications (bell icon with unread badge in the header, polled every 30s, plus a full
+  `/notifications` page) - fired for business verification decisions, booking updates, stock/
+  price alerts and new reviews, each independently toggleable from Account Settings. A new
+  `notification` module the other modules call into (never the other way - `NotificationService`
+  deliberately does not depend on `UserService`, since `UserService` needs to call it and a
+  two-way dependency between the beans would be circular).
+- Service bookings: a buyer can request a booking on any Service listing (preferred date/time +
+  a note); the seller accepts or declines (with a reason) from a "Booking requests" inbox on
+  their dashboard; the buyer tracks status on a "My bookings" page. New `booking` module.
+- Ratings &amp; reviews: a signed-in student can leave one star rating + comment per business
+  (a second submission edits the first, since there's no purchase record to tie a review to);
+  shown as an average + star-distribution + list on the provider profile; any reviewer can flag
+  a review, and admin gets a moderation queue plus a platform ratings overview (top/lowest rated
+  businesses). New `review` module.
+- "Notify me when back in stock" on a sold-out product - a one-shot subscription that fires
+  (and clears itself) the moment the listing restocks.
+- Seller-set low-stock alert threshold on a product - notifies the seller once, the first time
+  stock crosses at/under that number, not on every subsequent edit.
+- Deeper per-listing insights page (views/saves/save-rate, compared against the seller's other
+  listings) linked from My Listings, and a CSV export of My Listings.
+- A "Recommended for you" section on the buyer dashboard, based on categories from saved
+  listings and followed providers.
+- Bulk-select and remove multiple saved listings at once from the dashboard.
+- Admin: a targeted broadcast notification (distinct from the site banner - this lands directly
+  in recipients' notification bells) to all students, all sellers, or pending business owners;
+  a bookings overview tab (counts, most-booked services); the reviews moderation/overview tab
+  above.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

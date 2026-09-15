@@ -10,6 +10,7 @@ export interface UserResponse {
   accountStatus: "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   seller: boolean;
   suspensionReason: string | null;
+  disabledNotificationCategories: string[];
   createdAt: string;
 }
 
@@ -50,6 +51,7 @@ export interface ListingDTO {
   viewCount: number;
   stockQuantity: number | null;
   imageUrl: string | null;
+  lowStockThreshold: number | null;
   durationMinutes: number | null;
   availabilitySchedule: string | null;
   createdAt: string;
@@ -161,8 +163,72 @@ export interface AnnouncementDTO {
 
 export interface AuditLogEntryDTO {
   id: string;
-  category: "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT";
+  category: "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW";
   description: string;
   adminName: string;
   createdAt: string;
+}
+
+export type NotificationCategory = "BUSINESS" | "BOOKING" | "STOCK" | "REVIEW" | "ANNOUNCEMENT";
+
+export interface NotificationDTO {
+  id: string;
+  category: NotificationCategory;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export type BookingStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+
+export interface BookingSummaryView {
+  id: string;
+  listingId: string;
+  listingName: string;
+  businessId: string;
+  businessName: string;
+  buyerId: string;
+  buyerName: string;
+  preferredAt: string;
+  note: string | null;
+  status: BookingStatus;
+  declineReason: string | null;
+  createdAt: string;
+}
+
+export interface BookingStatsDTO {
+  total: number;
+  pending: number;
+  accepted: number;
+  declined: number;
+  mostBooked: { listingName: string; businessName: string; count: number }[];
+}
+
+export interface ReviewView {
+  id: string;
+  businessId: string;
+  businessName: string;
+  reviewerId: string;
+  reviewerName: string;
+  rating: number;
+  comment: string | null;
+  flagged: boolean;
+  flagCount: number;
+  createdAt: string;
+}
+
+export interface BusinessReviewsDTO {
+  average: number;
+  total: number;
+  distribution: Record<string, number>;
+  reviews: ReviewView[];
+}
+
+export interface ReviewStatsDTO {
+  platformAverage: number;
+  totalReviews: number;
+  flaggedCount: number;
+  reviewedBusinessCount: number;
+  topRated: { businessName: string; average: number; count: number }[];
+  lowestRated: { businessName: string; average: number; count: number }[];
 }

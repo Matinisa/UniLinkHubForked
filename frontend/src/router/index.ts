@@ -42,6 +42,24 @@ const router = createRouter({
       component: () => import("@/views/CompareListingsView.vue"),
     },
     {
+      path: "/notifications",
+      name: "notifications",
+      component: () => import("@/views/NotificationsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/bookings",
+      name: "my-bookings",
+      component: () => import("@/views/MyBookingsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/listings/:id/insights",
+      name: "listing-insights",
+      component: () => import("@/views/ListingInsightsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin",
       name: "admin-dashboard",
       component: () => import("@/views/admin/AdminDashboardView.vue"),

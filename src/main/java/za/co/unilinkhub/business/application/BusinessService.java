@@ -12,6 +12,7 @@ import za.co.unilinkhub.follow.repository.FollowedBusinessRepository;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.repository.ListingRepository;
+import za.co.unilinkhub.notification.application.NotificationService;
 import za.co.unilinkhub.saved.application.SavedListingService;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
@@ -30,6 +31,7 @@ public class BusinessService {
     private final SavedListingService savedListingService;
     private final FollowedBusinessRepository followedBusinessRepository;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
 
     public BusinessDTO create(UUID ownerId, String businessName, String description, String category) {
         // Becoming a seller and registering a first business happen together for the MVP flow.
@@ -104,6 +106,8 @@ public class BusinessService {
         business.verify();
         BusinessDTO dto = BusinessDTO.from(businessRepository.save(business));
         auditLogService.record(adminName(adminId), "BUSINESS", "Verified business \"" + business.getBusinessName() + "\"");
+        notificationService.notify(business.getOwnerId(), "BUSINESS",
+                "Your business \"" + business.getBusinessName() + "\" was verified!");
         return dto;
     }
 
@@ -113,6 +117,9 @@ public class BusinessService {
         BusinessDTO dto = BusinessDTO.from(businessRepository.save(business));
         auditLogService.record(adminName(adminId), "BUSINESS", "Rejected business \"" + business.getBusinessName() + "\""
                 + (reason != null && !reason.isBlank() ? " — reason: " + reason : ""));
+        notificationService.notify(business.getOwnerId(), "BUSINESS",
+                "Your business \"" + business.getBusinessName() + "\" was not approved"
+                        + (reason != null && !reason.isBlank() ? ": " + reason : "."));
         return dto;
     }
 

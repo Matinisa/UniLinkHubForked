@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import NotificationBell from "@/components/NotificationBell.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -41,6 +42,7 @@ function handleLogout() {
           >
             Admin console
           </RouterLink>
+          <NotificationBell />
           <button class="btn-secondary text-sm" @click="handleLogout">Log out</button>
         </template>
         <template v-else>

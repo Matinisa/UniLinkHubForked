@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import ListingCard from "@/components/ListingCard.vue";
-import type { BusinessContactDTO, ListingDTO, ProviderProfileDTO } from "@/lib/types";
+import type { BusinessContactDTO, BusinessReviewsDTO, ListingDTO, ProviderProfileDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -48,6 +48,71 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-ZA", { month: "short", year: "numeric" });
 }
 
+// ---- Reviews ----
+const reviewsData = ref<BusinessReviewsDTO | null>(null);
+const reviewFormOpen = ref(false);
+const reviewRating = ref(5);
+const reviewComment = ref("");
+const reviewSubmitting = ref(false);
+const reviewError = ref("");
+
+const myReview = computed(() =>
+  reviewsData.value?.reviews.find((r) => r.reviewerId === auth.user?.id) ?? null,
+);
+
+function starDistributionPercent(count: number): number {
+  const total = reviewsData.value?.total ?? 0;
+  if (total === 0) return 0;
+  return Math.round((count / total) * 100);
+}
+
+async function loadReviews(businessId: string) {
+  try {
+    const { data } = await api.get<BusinessReviewsDTO>(`/businesses/${businessId}/reviews`);
+    reviewsData.value = data;
+  } catch {
+    // Reviews are secondary to the profile itself; ignore failures here.
+  }
+}
+
+function openReviewForm() {
+  reviewFormOpen.value = true;
+  reviewError.value = "";
+  if (myReview.value) {
+    reviewRating.value = myReview.value.rating;
+    reviewComment.value = myReview.value.comment ?? "";
+  } else {
+    reviewRating.value = 5;
+    reviewComment.value = "";
+  }
+}
+
+async function submitReview() {
+  if (!profile.value) return;
+  reviewSubmitting.value = true;
+  reviewError.value = "";
+  try {
+    await api.post(`/businesses/${profile.value.businessId}/reviews`, {
+      rating: reviewRating.value,
+      comment: reviewComment.value || null,
+    });
+    reviewFormOpen.value = false;
+    await loadReviews(profile.value.businessId);
+  } catch (err) {
+    reviewError.value = extractErrorMessage(err);
+  } finally {
+    reviewSubmitting.value = false;
+  }
+}
+
+async function flagReview(reviewId: string) {
+  try {
+    await api.post(`/reviews/${reviewId}/flag`);
+  } catch {
+    // Best-effort - no need to surface a failure for flagging.
+  }
+}
+
 async function load() {
   const businessId = route.params.businessId as string;
   try {
@@ -60,6 +125,8 @@ async function load() {
 
     const { data: similar } = await api.get<ProviderProfileDTO[]>(`/businesses/${businessId}/similar`);
     similarBusinesses.value = similar;
+
+    await loadReviews(businessId);
   } catch (err) {
     error.value = extractErrorMessage(err);
   }
@@ -198,6 +265,68 @@ onMounted(load);
       <p v-if="listings.length === 0" class="card text-sm text-medium-grey">No active listings right now.</p>
       <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ListingCard v-for="listing in listings" :key="listing.id" :listing="listing" />
+      </div>
+    </div>
+
+    <div v-if="reviewsData" class="card space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-display text-2xl font-bold text-uni-navy">{{ reviewsData.average || "-" }}</span>
+            <span class="text-xl text-academic-gold" v-if="reviewsData.total > 0">★★★★★</span>
+          </div>
+          <p class="text-xs text-medium-grey">
+            {{ reviewsData.total === 0 ? "No reviews yet" : `Based on ${reviewsData.total} review${reviewsData.total === 1 ? "" : "s"}` }}
+          </p>
+        </div>
+        <button v-if="auth.isAuthenticated" class="btn-secondary text-sm" @click="openReviewForm">
+          {{ myReview ? "Edit your review" : "Leave a review" }}
+        </button>
+      </div>
+
+      <div v-if="reviewsData.total > 0" class="space-y-1.5">
+        <div v-for="star in [5, 4, 3, 2, 1]" :key="star" class="flex items-center gap-2 text-xs">
+          <span class="w-4 text-medium-grey">{{ star }}</span>
+          <div class="h-2 flex-1 overflow-hidden rounded-full bg-soft-grey">
+            <div class="h-full rounded-full bg-academic-gold" :style="{ width: `${starDistributionPercent(reviewsData.distribution[star] ?? 0)}%` }"></div>
+          </div>
+          <span class="w-6 text-right text-medium-grey">{{ reviewsData.distribution[star] ?? 0 }}</span>
+        </div>
+      </div>
+
+      <div v-if="reviewFormOpen" class="space-y-2 rounded-control border border-campus-teal bg-white p-3">
+        <p class="text-xs font-semibold text-medium-grey">Your rating</p>
+        <div class="flex gap-1 text-2xl text-academic-gold">
+          <button v-for="n in 5" :key="n" type="button" @click="reviewRating = n">
+            <span :class="n <= reviewRating ? '' : 'text-light-grey'">★</span>
+          </button>
+        </div>
+        <textarea v-model="reviewComment" class="input-field" rows="3" placeholder="How was your experience?"></textarea>
+        <p v-if="reviewError" class="text-sm text-danger">{{ reviewError }}</p>
+        <div class="flex justify-end gap-2">
+          <button class="btn-secondary text-sm" @click="reviewFormOpen = false">Cancel</button>
+          <button class="btn-primary text-sm" :disabled="reviewSubmitting" @click="submitReview">
+            {{ reviewSubmitting ? "Posting..." : "Post review" }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="reviewsData.reviews.length > 0" class="space-y-3 border-t border-light-grey pt-3">
+        <div v-for="r in reviewsData.reviews" :key="r.id" class="border-t border-light-grey pt-3 first:border-t-0 first:pt-0">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-uni-navy">{{ r.reviewerName }}</span>
+            <span class="text-academic-gold">
+              <template v-for="n in 5" :key="n"><span :class="n <= r.rating ? '' : 'text-light-grey'">★</span></template>
+            </span>
+          </div>
+          <p v-if="r.comment" class="mt-1 text-sm text-charcoal">{{ r.comment }}</p>
+          <div class="mt-1 flex items-center justify-between">
+            <p class="text-xs text-medium-grey">{{ formatDate(r.createdAt) }}</p>
+            <button v-if="auth.isAuthenticated && r.reviewerId !== auth.user?.id" class="text-xs text-medium-grey hover:text-danger" @click="flagReview(r.id)">
+              Flag
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

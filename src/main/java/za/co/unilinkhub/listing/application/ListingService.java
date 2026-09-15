@@ -9,8 +9,11 @@ import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
+import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.domain.Product;
 import za.co.unilinkhub.listing.repository.ListingRepository;
+import za.co.unilinkhub.notification.application.NotificationService;
+import za.co.unilinkhub.stockalert.application.StockAlertService;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -25,6 +28,8 @@ public class ListingService {
 
     private final ListingRepository listingRepository;
     private final BusinessRepository businessRepository;
+    private final StockAlertService stockAlertService;
+    private final NotificationService notificationService;
 
     public ListingDTO createProduct(UUID requesterId, UUID businessId, String name, String description,
                                      String category, BigDecimal price, Integer stockQuantity, String imageUrl) {
@@ -43,8 +48,8 @@ public class ListingService {
     }
 
     public ListingDTO update(UUID requesterId, UUID listingId, String name, String description, String category,
-                              BigDecimal price, Integer stockQuantity, String imageUrl, Integer durationMinutes,
-                              String availabilitySchedule, String status) {
+                              BigDecimal price, Integer stockQuantity, String imageUrl, Integer lowStockThreshold,
+                              Integer durationMinutes, String availabilitySchedule, String status) {
         Listing listing = findListing(listingId);
         assertOwnership(listing.getBusinessId(), requesterId);
         listing.updateBasicDetails(name, description, category, price);
@@ -59,11 +64,22 @@ public class ListingService {
         }
 
         if (listing instanceof Product product) {
+            boolean wasSoldOut = product.getStatus() == ListingStatus.SOLD_OUT;
+            boolean wasLowStock = product.isLowStock();
+            if (lowStockThreshold != null) {
+                product.updateLowStockThreshold(lowStockThreshold);
+            }
             if (stockQuantity != null) {
                 product.updateStock(stockQuantity);
             }
             if (imageUrl != null) {
                 product.updateImageUrl(imageUrl.isBlank() ? null : imageUrl);
+            }
+
+            if (wasSoldOut && product.getStatus() == ListingStatus.ACTIVE) {
+                stockAlertService.notifyAndClear(product.getId(), product.getName());
+            } else if (!wasLowStock && product.isLowStock()) {
+                notifyLowStock(product);
             }
         }
         if (listing instanceof za.co.unilinkhub.listing.domain.Service service) {
@@ -76,6 +92,12 @@ public class ListingService {
         }
 
         return ListingDTO.from(listingRepository.save(listing));
+    }
+
+    private void notifyLowStock(Product product) {
+        businessRepository.findById(product.getBusinessId()).ifPresent(business ->
+                notificationService.notify(business.getOwnerId(), "STOCK",
+                        "\"" + product.getName() + "\" is low on stock - " + product.getStockQuantity() + " left"));
     }
 
     public void deactivate(UUID requesterId, UUID listingId) {

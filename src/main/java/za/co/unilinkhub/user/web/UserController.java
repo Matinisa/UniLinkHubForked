@@ -65,6 +65,11 @@ public class UserController {
         deactivateAccountUseCase.execute(userId, request.currentPassword());
     }
 
+    @PatchMapping("/api/users/me/notification-preferences")
+    public UserResponse updateNotificationPreferences(@CurrentUser UUID userId, @RequestBody UserRequest.NotificationPreferences request) {
+        return UserResponse.from(userService.updateNotificationPreferences(userId, request.disabledCategories()));
+    }
+
     @GetMapping("/api/users/{id}")
     public UserResponse getById(@PathVariable UUID id) {
         return UserResponse.from(userService.getById(id));

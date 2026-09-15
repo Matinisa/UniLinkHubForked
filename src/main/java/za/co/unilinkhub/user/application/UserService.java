@@ -97,6 +97,13 @@ public class UserService {
         return dto;
     }
 
+    public UserDTO updateNotificationPreferences(UUID userId, java.util.List<String> disabledCategories) {
+        User user = findUser(userId);
+        user.updateDisabledNotificationCategories(disabledCategories == null || disabledCategories.isEmpty()
+                ? null : String.join(",", disabledCategories));
+        return UserDTO.from(userRepository.save(user));
+    }
+
     private User findUser(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));

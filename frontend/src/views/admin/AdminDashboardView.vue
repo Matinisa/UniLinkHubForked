@@ -8,14 +8,17 @@ import type {
   AdminUserDetailDTO,
   AnnouncementDTO,
   AuditLogEntryDTO,
+  BookingStatsDTO,
   ListingDTO,
   ReportSummaryView,
   ReportStatus,
   ReportStatusCounts,
+  ReviewStatsDTO,
+  ReviewView,
   UserResponse,
 } from "@/lib/types";
 
-type Section = "overview" | "reports" | "businesses" | "accounts" | "announcements" | "activity";
+type Section = "overview" | "reports" | "businesses" | "accounts" | "announcements" | "activity" | "bookings" | "reviews" | "broadcast";
 const activeSection = ref<Section>("overview");
 
 // ---- Overview ----
@@ -487,13 +490,14 @@ async function deactivateAnnouncement(id: string) {
 const activityEntries = ref<AuditLogEntryDTO[]>([]);
 const activityLoading = ref(false);
 const activityError = ref("");
-const activityFilter = ref<"ALL" | "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT">("ALL");
+const activityFilter = ref<"ALL" | "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW">("ALL");
 
 const activityFilters: { value: typeof activityFilter.value; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "BUSINESS", label: "Verifications" },
   { value: "ACCOUNT", label: "Accounts" },
   { value: "REPORT", label: "Reports" },
+  { value: "REVIEW", label: "Reviews" },
   { value: "ANNOUNCEMENT", label: "Announcements" },
 ];
 
@@ -501,6 +505,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   BUSINESS: "✓",
   ACCOUNT: "⏸",
   REPORT: "🚩",
+  REVIEW: "⭐",
   ANNOUNCEMENT: "📢",
 };
 
@@ -532,6 +537,85 @@ function setActivityFilter(value: typeof activityFilter.value) {
   loadActivityLog();
 }
 
+// ---- Bookings ----
+const bookingStats = ref<BookingStatsDTO | null>(null);
+const bookingStatsLoading = ref(false);
+const bookingStatsError = ref("");
+
+async function loadBookingStats() {
+  bookingStatsLoading.value = true;
+  bookingStatsError.value = "";
+  try {
+    const { data } = await api.get<BookingStatsDTO>("/admin/bookings/stats");
+    bookingStats.value = data;
+  } catch (err) {
+    bookingStatsError.value = extractErrorMessage(err);
+  } finally {
+    bookingStatsLoading.value = false;
+  }
+}
+
+// ---- Reviews ----
+const reviewStats = ref<ReviewStatsDTO | null>(null);
+const flaggedReviews = ref<ReviewView[]>([]);
+const reviewsLoading = ref(false);
+const reviewsError = ref("");
+const removingReviewId = ref<string | null>(null);
+
+async function loadReviewsSection() {
+  reviewsLoading.value = true;
+  reviewsError.value = "";
+  try {
+    const [{ data: stats }, { data: flagged }] = await Promise.all([
+      api.get<ReviewStatsDTO>("/admin/reviews/stats"),
+      api.get<ReviewView[]>("/admin/reviews", { params: { flaggedOnly: true } }),
+    ]);
+    reviewStats.value = stats;
+    flaggedReviews.value = flagged;
+  } catch (err) {
+    reviewsError.value = extractErrorMessage(err);
+  } finally {
+    reviewsLoading.value = false;
+  }
+}
+
+async function removeReview(id: string) {
+  removingReviewId.value = id;
+  reviewsError.value = "";
+  try {
+    await api.delete(`/admin/reviews/${id}`);
+    await loadReviewsSection();
+  } catch (err) {
+    reviewsError.value = extractErrorMessage(err);
+  } finally {
+    removingReviewId.value = null;
+  }
+}
+
+// ---- Broadcast notification ----
+const broadcastAudience = ref<"ALL_STUDENTS" | "ALL_SELLERS" | "PENDING_BUSINESS_OWNERS">("ALL_STUDENTS");
+const broadcastMessage = ref("");
+const broadcastSending = ref(false);
+const broadcastStatus = ref("");
+
+async function sendBroadcast() {
+  if (!broadcastMessage.value.trim()) return;
+  broadcastSending.value = true;
+  broadcastStatus.value = "";
+  try {
+    const { data } = await api.post<{ recipientCount: number }>("/admin/notifications/broadcast", {
+      audience: broadcastAudience.value,
+      message: broadcastMessage.value,
+    });
+    broadcastStatus.value = `Sent to ${data.recipientCount} user(s).`;
+    broadcastMessage.value = "";
+  } catch (err) {
+    broadcastStatus.value = extractErrorMessage(err);
+  } finally {
+    broadcastSending.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     loadStats(),
@@ -541,6 +625,8 @@ onMounted(async () => {
     loadAccounts(),
     loadAnnouncements(),
     loadActivityLog(),
+    loadBookingStats(),
+    loadReviewsSection(),
   ]);
 });
 </script>
@@ -600,6 +686,28 @@ onMounted(async () => {
           @click="activeSection = 'activity'"
         >
           Activity log
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'bookings' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'bookings'"
+        >
+          Bookings
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'reviews' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'reviews'"
+        >
+          Reviews
+          <span v-if="flaggedReviews.length > 0" class="ml-1.5 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">{{ flaggedReviews.length }}</span>
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'broadcast' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'broadcast'"
+        >
+          Send notification
         </button>
       </div>
 
@@ -1232,6 +1340,7 @@ onMounted(async () => {
                 'bg-success/15 text-success': entry.category === 'BUSINESS',
                 'bg-warning/15 text-warning': entry.category === 'ACCOUNT',
                 'bg-charcoal/10 text-charcoal': entry.category === 'REPORT',
+                'bg-academic-gold/20 text-uni-navy': entry.category === 'REVIEW',
                 'bg-info/15 text-info': entry.category === 'ANNOUNCEMENT',
               }"
             >
@@ -1241,6 +1350,141 @@ onMounted(async () => {
               <p class="text-sm text-charcoal">{{ entry.description }}</p>
               <p class="text-xs text-medium-grey">by {{ entry.adminName }} &middot; {{ activityRelativeTime(entry.createdAt) }}</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bookings section -->
+      <section v-else-if="activeSection === 'bookings'" class="space-y-5">
+        <p v-if="bookingStatsError" class="text-sm text-danger">{{ bookingStatsError }}</p>
+        <p v-else-if="bookingStatsLoading || !bookingStats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Total bookings</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ bookingStats.total }}</p>
+              <p class="text-xs text-medium-grey">all time</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Pending</p>
+              <p class="font-display text-2xl font-bold text-warning">{{ bookingStats.pending }}</p>
+              <p class="text-xs text-medium-grey">awaiting seller reply</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Accepted</p>
+              <p class="font-display text-2xl font-bold text-success">{{ bookingStats.accepted }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Declined</p>
+              <p class="font-display text-2xl font-bold text-danger">{{ bookingStats.declined }}</p>
+            </div>
+          </div>
+
+          <div class="card space-y-2.5">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">Most-booked services</h3>
+            <p v-if="bookingStats.mostBooked.length === 0" class="text-sm text-medium-grey">No bookings yet.</p>
+            <div v-for="s in bookingStats.mostBooked" :key="s.listingName + s.businessName" class="flex items-center justify-between text-sm">
+              <span class="text-charcoal">{{ s.listingName }} &middot; {{ s.businessName }}</span>
+              <span class="badge bg-academic-gold/20 text-uni-navy">{{ s.count }} booking{{ s.count === 1 ? "" : "s" }}</span>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Reviews section -->
+      <section v-else-if="activeSection === 'reviews'" class="space-y-5">
+        <p v-if="reviewsError" class="text-sm text-danger">{{ reviewsError }}</p>
+        <p v-else-if="reviewsLoading || !reviewStats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Platform average</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ reviewStats.platformAverage || "-" }} <span class="text-base text-academic-gold">★</span></p>
+              <p class="text-xs text-medium-grey">across {{ reviewStats.totalReviews }} reviews</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Flagged reviews</p>
+              <p class="font-display text-2xl font-bold text-danger">{{ reviewStats.flaggedCount }}</p>
+              <p class="text-xs text-medium-grey">need moderation</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Reviewed businesses</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ reviewStats.reviewedBusinessCount }}</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="card space-y-2.5">
+              <h3 class="font-display text-sm font-semibold text-uni-navy">Top rated</h3>
+              <p v-if="reviewStats.topRated.length === 0" class="text-sm text-medium-grey">No reviews yet.</p>
+              <div v-for="r in reviewStats.topRated" :key="r.businessName" class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">{{ r.businessName }}</span>
+                <span class="font-medium text-academic-gold">{{ r.average }} ★</span>
+              </div>
+            </div>
+            <div class="card space-y-2.5">
+              <h3 class="font-display text-sm font-semibold text-uni-navy">Needs attention</h3>
+              <p v-if="reviewStats.lowestRated.length === 0" class="text-sm text-medium-grey">No reviews yet.</p>
+              <div v-for="r in reviewStats.lowestRated" :key="r.businessName" class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">{{ r.businessName }}</span>
+                <span class="font-medium text-danger">{{ r.average }} ★</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">Flagged for moderation</h3>
+            <p v-if="flaggedReviews.length === 0" class="card text-sm text-medium-grey">No flagged reviews right now.</p>
+            <div v-else class="card !p-0 divide-y divide-light-grey">
+              <div v-for="r in flaggedReviews" :key="r.id" class="flex items-start justify-between gap-3 px-4 py-3.5">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-uni-navy">{{ r.reviewerName }}</span>
+                    <span class="text-sm text-academic-gold">
+                      <template v-for="n in 5" :key="n"><span :class="n <= r.rating ? '' : 'text-light-grey'">★</span></template>
+                    </span>
+                    <span class="badge bg-danger/15 text-danger">Flagged &times;{{ r.flagCount }}</span>
+                  </div>
+                  <p v-if="r.comment" class="mt-1 text-sm text-charcoal">{{ r.comment }}</p>
+                  <p class="mt-1 text-xs text-medium-grey">on {{ r.businessName }}</p>
+                </div>
+                <button
+                  class="inline-flex shrink-0 items-center justify-center rounded-control border border-danger bg-white px-3 py-1.5 text-xs font-semibold text-danger disabled:opacity-50"
+                  :disabled="removingReviewId === r.id"
+                  @click="removeReview(r.id)"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Broadcast notification section -->
+      <section v-else-if="activeSection === 'broadcast'" class="max-w-2xl space-y-4">
+        <div class="card space-y-3">
+          <h2 class="font-display text-base font-semibold text-uni-navy">Send a targeted notification</h2>
+          <p class="text-xs text-medium-grey">Unlike a site banner, this lands directly in the recipients' notification bell.</p>
+
+          <label class="block text-xs font-semibold text-medium-grey">Audience</label>
+          <select v-model="broadcastAudience" class="input-field">
+            <option value="ALL_STUDENTS">All students</option>
+            <option value="ALL_SELLERS">All sellers</option>
+            <option value="PENDING_BUSINESS_OWNERS">Pending business owners</option>
+          </select>
+
+          <label class="block text-xs font-semibold text-medium-grey">Message</label>
+          <textarea v-model="broadcastMessage" class="input-field" rows="3" placeholder="e.g. New: you can now request bookings for services!"></textarea>
+
+          <p v-if="broadcastStatus" class="text-sm" :class="broadcastStatus.startsWith('Sent') ? 'text-success' : 'text-danger'">{{ broadcastStatus }}</p>
+
+          <div class="flex justify-end">
+            <button class="btn-primary text-sm" :disabled="broadcastSending || !broadcastMessage.trim()" @click="sendBroadcast">
+              {{ broadcastSending ? "Sending..." : "Send notification" }}
+            </button>
           </div>
         </div>
       </section>

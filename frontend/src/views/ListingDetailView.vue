@@ -63,6 +63,51 @@ async function load() {
   }
 }
 
+// ---- Request a booking (services) ----
+const bookingOpen = ref(false);
+const bookingDate = ref("");
+const bookingTime = ref("12:00");
+const bookingNote = ref("");
+const bookingSubmitting = ref(false);
+const bookingStatus = ref("");
+
+async function submitBooking() {
+  if (!listing.value || !bookingDate.value) return;
+  bookingSubmitting.value = true;
+  bookingStatus.value = "";
+  try {
+    await api.post("/bookings", {
+      listingId: listing.value.id,
+      preferredAt: `${bookingDate.value}T${bookingTime.value}:00`,
+      note: bookingNote.value || null,
+    });
+    bookingStatus.value = "Request sent - you'll get a notification once the seller responds.";
+    bookingOpen.value = false;
+    bookingNote.value = "";
+  } catch (err) {
+    bookingStatus.value = extractErrorMessage(err);
+  } finally {
+    bookingSubmitting.value = false;
+  }
+}
+
+// ---- Notify me when back in stock (sold-out products) ----
+const notifySubscribed = ref(false);
+const notifyLoading = ref(false);
+
+async function toggleNotifyMe() {
+  if (!listing.value) return;
+  notifyLoading.value = true;
+  try {
+    const { data } = await api.post<{ subscribed: boolean }>(`/listings/${listing.value.id}/notify-me`);
+    notifySubscribed.value = data.subscribed;
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    notifyLoading.value = false;
+  }
+}
+
 async function submitReport() {
   if (!listing.value) return;
   reportStatus.value = "";
@@ -158,6 +203,32 @@ onMounted(load);
         <dd class="inline"> {{ listing.availabilitySchedule ?? "Contact seller" }}</dd>
       </dl>
 
+      <button
+        v-if="listing.type === 'SERVICE' && listing.status === 'ACTIVE' && auth.isAuthenticated"
+        class="btn-primary w-full text-sm"
+        @click="bookingOpen = true; bookingStatus = ''"
+      >
+        Request a booking
+      </button>
+      <RouterLink v-else-if="listing.type === 'SERVICE' && listing.status === 'ACTIVE'" to="/login" class="btn-secondary block w-full text-center text-sm">
+        Log in to request a booking
+      </RouterLink>
+      <p v-if="bookingStatus" class="text-sm text-success">{{ bookingStatus }}</p>
+
+      <template v-if="listing.type === 'PRODUCT' && listing.status === 'SOLD_OUT' && auth.isAuthenticated">
+        <button
+          class="inline-flex w-full items-center justify-center gap-2 rounded-control border-2 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+          :class="notifySubscribed ? 'border-campus-teal bg-campus-teal/10 text-campus-teal' : 'border-light-grey text-charcoal'"
+          :disabled="notifyLoading"
+          @click="toggleNotifyMe"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
+          </svg>
+          {{ notifySubscribed ? "We'll notify you when back in stock" : "Notify me when back in stock" }}
+        </button>
+      </template>
+
       <div class="flex flex-wrap items-center gap-4 border-t border-light-grey pt-3 text-xs text-medium-grey">
         <span class="inline-flex items-center gap-1.5">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A94A6" stroke-width="2">
@@ -212,6 +283,34 @@ onMounted(load);
     <p v-else class="text-sm text-medium-grey">
       <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink> to report a listing.
     </p>
+
+    <div v-if="bookingOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="bookingOpen = false">
+      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+        <div class="mb-1 flex items-center justify-between">
+          <h2 class="font-display text-base font-bold text-uni-navy">Request a booking</h2>
+          <button class="text-medium-grey" @click="bookingOpen = false">&times;</button>
+        </div>
+        <p class="mb-4 text-xs text-medium-grey">
+          {{ business?.businessName }} will accept or decline - you'll get a notification either way.
+        </p>
+
+        <label class="mb-1 block text-xs font-medium text-medium-grey">Preferred date</label>
+        <input v-model="bookingDate" type="date" class="input-field" :min="new Date().toISOString().slice(0, 10)" />
+
+        <label class="mb-1 mt-3 block text-xs font-medium text-medium-grey">Preferred time</label>
+        <input v-model="bookingTime" type="time" class="input-field" />
+
+        <label class="mb-1 mt-3 block text-xs font-medium text-medium-grey">Note (optional)</label>
+        <textarea v-model="bookingNote" class="input-field" rows="3" placeholder="Anything the seller should know..."></textarea>
+
+        <div class="mt-4 flex gap-2">
+          <button class="btn-secondary flex-1 text-sm" @click="bookingOpen = false">Cancel</button>
+          <button class="btn-primary flex-1 text-sm" :disabled="bookingSubmitting || !bookingDate" @click="submitBooking">
+            {{ bookingSubmitting ? "Sending..." : "Send request" }}
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>

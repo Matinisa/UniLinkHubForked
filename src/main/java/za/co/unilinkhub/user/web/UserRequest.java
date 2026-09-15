@@ -55,4 +55,9 @@ public class UserRequest {
             @NotBlank String currentPassword
     ) {
     }
+
+    public record NotificationPreferences(
+            java.util.List<String> disabledCategories
+    ) {
+    }
 }

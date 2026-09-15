@@ -25,6 +25,29 @@ function showToast(message: string) {
   toastHandle = setTimeout(() => (toast.value = ""), 4000);
 }
 
+function exportCsv() {
+  const header = ["Listing", "Business", "Price", "Status", "Views"];
+  const rows = filteredListings.value.map((l) => [
+    l.name,
+    businessNameById.value[l.businessId] ?? "-",
+    l.price,
+    l.status,
+    l.viewCount,
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `my-listings-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 const businessNameById = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
   for (const b of businesses.value) map[b.id] = b.businessName;
@@ -167,10 +190,21 @@ onMounted(load);
 
 <template>
   <section class="mx-auto max-w-4xl space-y-5 pb-16">
-    <h1 class="font-display text-xl font-bold text-uni-navy">My listings</h1>
-    <p class="text-sm text-medium-grey">
-      Every listing across all your businesses, in one table instead of hunting per-business.
-    </p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="font-display text-xl font-bold text-uni-navy">My listings</h1>
+        <p class="text-sm text-medium-grey">
+          Every listing across all your businesses, in one table instead of hunting per-business.
+        </p>
+      </div>
+      <button
+        class="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-uni-navy bg-white px-3 py-2 text-sm font-semibold text-uni-navy disabled:opacity-50"
+        :disabled="filteredListings.length === 0"
+        @click="exportCsv"
+      >
+        Export CSV
+      </button>
+    </div>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex flex-wrap gap-2">
@@ -229,6 +263,13 @@ onMounted(load);
                 @click.stop
               >
                 <button class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey" @click="manage(); openMenuId = null">Edit</button>
+                <RouterLink
+                  :to="`/listings/${l.id}/insights`"
+                  class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
+                  @click="openMenuId = null"
+                >
+                  Insights
+                </RouterLink>
                 <button class="block w-full px-3 py-1.5 text-left text-sm font-semibold text-campus-teal hover:bg-campus-teal/10" @click="duplicateListing(l)">Duplicate</button>
                 <button
                   v-if="l.status !== 'SOLD_OUT'"

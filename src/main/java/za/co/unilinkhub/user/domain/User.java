@@ -78,6 +78,14 @@ public class User {
     @Column(name = "suspension_reason", length = 1000)
     private String suspensionReason;
 
+    /**
+     * Comma-separated notification categories this user has turned OFF (e.g. "ANNOUNCEMENT").
+     * Null/blank means nothing is disabled - opt-out rather than opt-in, so a category added
+     * later defaults to enabled for everyone rather than silently going to no one.
+     */
+    @Column(name = "disabled_notification_categories", length = 200)
+    private String disabledNotificationCategories;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -182,5 +190,21 @@ public class User {
 
     public String getFullName() {
         return firstName + " " + lastName;
+    }
+
+    public void updateDisabledNotificationCategories(String disabledCategoriesCsv) {
+        this.disabledNotificationCategories = disabledCategoriesCsv;
+    }
+
+    public boolean isNotificationCategoryEnabled(String category) {
+        if (disabledNotificationCategories == null || disabledNotificationCategories.isBlank()) {
+            return true;
+        }
+        for (String disabled : disabledNotificationCategories.split(",")) {
+            if (disabled.trim().equalsIgnoreCase(category)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

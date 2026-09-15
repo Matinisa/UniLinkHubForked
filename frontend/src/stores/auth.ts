@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { api, getToken, setToken } from "@/lib/api";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useNotificationsStore } from "@/stores/notifications";
 import type { AuthResponse, UserResponse } from "@/lib/types";
 
 export const useAuthStore = defineStore("auth", {
@@ -62,6 +63,7 @@ export const useAuthStore = defineStore("auth", {
       setToken(null);
       useSavedListingsStore().reset();
       useFollowedProvidersStore().reset();
+      useNotificationsStore().reset();
     },
   },
 });

@@ -20,9 +20,11 @@ import za.co.unilinkhub.listing.application.ListingDTO;
 import za.co.unilinkhub.listing.application.ListingService;
 import za.co.unilinkhub.saved.application.SavedListingService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.stockalert.application.StockAlertService;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -32,6 +34,7 @@ public class ListingController {
 
     private final ListingService listingService;
     private final SavedListingService savedListingService;
+    private final StockAlertService stockAlertService;
 
     public record CreateProductRequest(
             @NotNull UUID businessId, @NotBlank String name, @NotBlank String description,
@@ -48,8 +51,8 @@ public class ListingController {
     }
 
     public record UpdateListingRequest(String name, String description, String category, BigDecimal price,
-                                        Integer stockQuantity, String imageUrl, Integer durationMinutes,
-                                        String availabilitySchedule, String status) {
+                                        Integer stockQuantity, String imageUrl, Integer lowStockThreshold,
+                                        Integer durationMinutes, String availabilitySchedule, String status) {
     }
 
     @PostMapping("/products")
@@ -69,8 +72,8 @@ public class ListingController {
     @PatchMapping("/{id}")
     public ListingDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateListingRequest request) {
         return listingService.update(userId, id, request.name(), request.description(), request.category(),
-                request.price(), request.stockQuantity(), request.imageUrl(), request.durationMinutes(),
-                request.availabilitySchedule(), request.status());
+                request.price(), request.stockQuantity(), request.imageUrl(), request.lowStockThreshold(),
+                request.durationMinutes(), request.availabilitySchedule(), request.status());
     }
 
     @PostMapping("/{id}/deactivate")
@@ -125,5 +128,10 @@ public class ListingController {
     @GetMapping("/mine")
     public List<ListingDTO> mine(@CurrentUser UUID userId) {
         return listingService.listMine(userId);
+    }
+
+    @PostMapping("/{id}/notify-me")
+    public Map<String, Boolean> toggleNotifyMe(@CurrentUser UUID userId, @PathVariable UUID id) {
+        return Map.of("subscribed", stockAlertService.toggle(userId, id));
     }
 }

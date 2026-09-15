@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
@@ -7,7 +7,7 @@ import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
 import ListingCard from "@/components/ListingCard.vue";
-import type { BusinessDTO, BusinessStatsDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
+import type { BookingSummaryView, BusinessDTO, BusinessStatsDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
@@ -38,6 +38,64 @@ const creatingListing = ref(false);
 
 // ---- Buyer: recently viewed ----
 const recentlyViewed = ref<ListingDTO[]>([]);
+
+// ---- Buyer: bulk unsave ----
+const savedSelectMode = ref(false);
+const savedSelected = ref(new Set<string>());
+const bulkUnsaving = ref(false);
+
+function toggleSavedSelected(id: string) {
+  if (savedSelected.value.has(id)) {
+    savedSelected.value.delete(id);
+  } else {
+    savedSelected.value.add(id);
+  }
+}
+
+async function bulkUnsave() {
+  bulkUnsaving.value = true;
+  try {
+    for (const listing of saved.listings.filter((l) => savedSelected.value.has(l.id))) {
+      await saved.toggleSave(listing);
+    }
+    savedSelected.value.clear();
+    savedSelectMode.value = false;
+  } finally {
+    bulkUnsaving.value = false;
+  }
+}
+
+// ---- Buyer: recommended for you ----
+const recommended = ref<ListingDTO[]>([]);
+const favoriteCategories = ref<string[]>([]);
+
+async function loadRecommended() {
+  const categoriesOfInterest = new Set<string>();
+  for (const l of saved.listings) categoriesOfInterest.add(l.category);
+  for (const p of followed.providers) categoriesOfInterest.add(p.category);
+  favoriteCategories.value = [...categoriesOfInterest];
+  if (favoriteCategories.value.length === 0) return;
+
+  try {
+    const savedIds = new Set(saved.listings.map((l) => l.id));
+    const results = await Promise.all(
+      favoriteCategories.value.slice(0, 3).map((c) => api.get<ListingDTO[]>("/listings", { params: { category: c, sort: "views" } })),
+    );
+    const seen = new Set<string>();
+    const combined: ListingDTO[] = [];
+    for (const { data } of results) {
+      for (const listing of data) {
+        if (listing.status === "ACTIVE" && !savedIds.has(listing.id) && !seen.has(listing.id)) {
+          seen.add(listing.id);
+          combined.push(listing);
+        }
+      }
+    }
+    recommended.value = combined.slice(0, 6);
+  } catch {
+    // Recommendations are a nice-to-have; ignore failures here.
+  }
+}
 
 // ---- Buyer: my reports ----
 const myReports = ref<ReportSummaryView[]>([]);
@@ -97,6 +155,73 @@ async function loadReports() {
 
 // ---- Seller ----
 const statsByBusiness = ref<Record<string, BusinessStatsDTO>>({});
+
+function scrollToBusiness(businessId: string) {
+  const el = document.getElementById(`business-${businessId}`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.classList.add("ring-2", "ring-campus-teal");
+    setTimeout(() => el.classList.remove("ring-2", "ring-campus-teal"), 1500);
+  }
+}
+
+// ---- Seller: booking requests ----
+const sellerBookings = ref<BookingSummaryView[]>([]);
+const decliningBookingId = ref<string | null>(null);
+const declineReason = ref("");
+const bookingActing = ref<string | null>(null);
+
+const pendingBookings = computed(() => sellerBookings.value.filter((b) => b.status === "PENDING"));
+
+const BOOKING_STATUS_STYLES: Record<string, string> = {
+  PENDING: "bg-warning/15 text-warning",
+  ACCEPTED: "bg-success/15 text-success",
+  DECLINED: "bg-danger/15 text-danger",
+};
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-ZA", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+async function loadSellerBookings() {
+  if (!auth.isSeller) return;
+  try {
+    const { data } = await api.get<BookingSummaryView[]>("/bookings/seller");
+    sellerBookings.value = data;
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  }
+}
+
+async function acceptBooking(id: string) {
+  bookingActing.value = id;
+  try {
+    await api.post(`/bookings/${id}/accept`);
+    await loadSellerBookings();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    bookingActing.value = null;
+  }
+}
+
+function startDecline(id: string) {
+  decliningBookingId.value = id;
+  declineReason.value = "";
+}
+
+async function confirmDecline(id: string) {
+  bookingActing.value = id;
+  try {
+    await api.post(`/bookings/${id}/decline`, { reason: declineReason.value });
+    decliningBookingId.value = null;
+    await loadSellerBookings();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    bookingActing.value = null;
+  }
+}
 
 async function loadBusinesses() {
   if (!auth.isSeller) return;
@@ -206,6 +331,7 @@ const editForm = ref({
   status: "ACTIVE" as "ACTIVE" | "INACTIVE",
   stockQuantity: 0,
   imageUrl: "",
+  lowStockThreshold: null as number | null,
   durationMinutes: 0,
   availabilitySchedule: "",
 });
@@ -221,6 +347,7 @@ function startEdit(listing: ListingDTO) {
     status: listing.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     stockQuantity: listing.stockQuantity ?? 0,
     imageUrl: listing.imageUrl ?? "",
+    lowStockThreshold: listing.lowStockThreshold,
     durationMinutes: listing.durationMinutes ?? 0,
     availabilitySchedule: listing.availabilitySchedule ?? "",
   };
@@ -242,6 +369,7 @@ async function saveEdit(listing: ListingDTO) {
       status: editForm.value.status,
       stockQuantity: listing.type === "PRODUCT" ? editForm.value.stockQuantity : undefined,
       imageUrl: listing.type === "PRODUCT" ? editForm.value.imageUrl : undefined,
+      lowStockThreshold: listing.type === "PRODUCT" ? editForm.value.lowStockThreshold : undefined,
       durationMinutes: listing.type === "SERVICE" ? editForm.value.durationMinutes : undefined,
       availabilitySchedule: listing.type === "SERVICE" ? editForm.value.availabilitySchedule : undefined,
     });
@@ -256,7 +384,8 @@ async function saveEdit(listing: ListingDTO) {
 
 onMounted(async () => {
   recentlyViewed.value = getRecentlyViewed();
-  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved(), followed.fetchFollowed()]);
+  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved(), followed.fetchFollowed(), loadSellerBookings()]);
+  await loadRecommended();
 });
 </script>
 
@@ -273,15 +402,52 @@ onMounted(async () => {
 
     <!-- Saved listings -->
     <div>
-      <div class="mb-3 flex items-center gap-2">
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Saved listings</h2>
-        <span v-if="saved.listings.length > 0" class="text-xs text-medium-grey">{{ saved.listings.length }} saved</span>
+      <div class="mb-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h2 class="font-display text-lg font-semibold text-uni-navy">Saved listings</h2>
+          <span v-if="saved.listings.length > 0" class="text-xs text-medium-grey">{{ saved.listings.length }} saved</span>
+        </div>
+        <button
+          v-if="saved.listings.length > 0"
+          class="text-xs font-medium text-campus-teal"
+          @click="savedSelectMode = !savedSelectMode; savedSelected.clear()"
+        >
+          {{ savedSelectMode ? "Cancel" : "Select" }}
+        </button>
       </div>
       <div v-if="saved.listings.length === 0" class="card text-sm text-medium-grey">
         Tap the heart on any listing to save it here for later.
       </div>
       <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ListingCard v-for="listing in saved.listings" :key="listing.id" :listing="listing" />
+        <div v-for="listing in saved.listings" :key="listing.id" class="relative">
+          <input
+            v-if="savedSelectMode"
+            type="checkbox"
+            class="absolute right-2.5 top-2.5 z-10 h-4 w-4 accent-campus-teal"
+            :checked="savedSelected.has(listing.id)"
+            @change="toggleSavedSelected(listing.id)"
+            @click.stop
+          />
+          <ListingCard :listing="listing" :class="{ '!border-campus-teal bg-campus-teal/5': savedSelected.has(listing.id) }" />
+        </div>
+      </div>
+      <div v-if="savedSelectMode && savedSelected.size > 0" class="mt-3 flex items-center justify-between rounded-control bg-uni-navy px-4 py-3">
+        <p class="text-sm font-semibold text-white">{{ savedSelected.size }} selected</p>
+        <button class="inline-flex items-center gap-1.5 rounded-control bg-white/10 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" :disabled="bulkUnsaving" @click="bulkUnsave">
+          {{ bulkUnsaving ? "Removing..." : "Remove from saved" }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Recommended for you -->
+    <div v-if="recommended.length > 0">
+      <div class="mb-1 flex items-center gap-2">
+        <span class="text-lg">✨</span>
+        <h2 class="font-display text-lg font-semibold text-uni-navy">Recommended for you</h2>
+      </div>
+      <p class="mb-3 text-xs text-medium-grey">Based on categories you've saved and followed: {{ favoriteCategories.join(", ") }}</p>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ListingCard v-for="listing in recommended" :key="listing.id" :listing="listing" />
       </div>
     </div>
 
@@ -365,7 +531,13 @@ onMounted(async () => {
       <div class="card space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="font-display text-lg font-semibold text-uni-navy">Your businesses</h2>
-          <RouterLink to="/my-listings" class="text-xs font-medium text-campus-teal underline">View all listings &rarr;</RouterLink>
+          <div class="flex items-center gap-3">
+            <select v-if="businesses.length > 1" class="input-field w-40 text-xs" @change="scrollToBusiness(($event.target as HTMLSelectElement).value)">
+              <option value="" disabled selected>Jump to business...</option>
+              <option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.businessName }}</option>
+            </select>
+            <RouterLink to="/my-listings" class="text-xs font-medium text-campus-teal underline">View all listings &rarr;</RouterLink>
+          </div>
         </div>
 
         <div v-if="businesses.length === 0" class="text-sm text-medium-grey">
@@ -373,7 +545,7 @@ onMounted(async () => {
         </div>
 
         <ul v-else class="space-y-2">
-          <li v-for="business in businesses" :key="business.id" class="rounded-control border border-light-grey p-3">
+          <li v-for="business in businesses" :id="`business-${business.id}`" :key="business.id" class="rounded-control border border-light-grey p-3 transition">
             <div class="flex items-center justify-between">
               <span class="font-semibold text-uni-navy">{{ business.businessName }}</span>
               <span
@@ -447,6 +619,12 @@ onMounted(async () => {
                 <div v-if="editingListingId !== listing.id" class="flex items-center justify-between rounded-control bg-soft-grey px-3 py-2 text-sm">
                   <span :class="{ 'text-medium-grey line-through': listing.status === 'INACTIVE' }">
                     {{ listing.name }} · {{ LISTING_STATUS_LABELS[listing.status] ?? listing.status }} · {{ listing.viewCount }} views
+                    <span
+                      v-if="listing.type === 'PRODUCT' && listing.status === 'ACTIVE' && listing.lowStockThreshold != null && (listing.stockQuantity ?? 0) <= listing.lowStockThreshold"
+                      class="badge bg-warning/15 text-warning ml-1"
+                    >
+                      ⚠️ Low stock - {{ listing.stockQuantity }} left
+                    </span>
                   </span>
                   <div class="flex items-center gap-3">
                     <button class="text-xs font-medium text-campus-teal underline" @click="startEdit(listing)">Edit</button>
@@ -503,6 +681,16 @@ onMounted(async () => {
                         class="input-field sm:col-span-2"
                         placeholder="Image URL (optional)"
                       />
+                      <div class="sm:col-span-2">
+                        <label class="mb-1 block text-xs font-medium text-medium-grey">Low-stock alert threshold (optional)</label>
+                        <input
+                          v-model.number="editForm.lowStockThreshold"
+                          type="number"
+                          min="0"
+                          class="input-field"
+                          placeholder="e.g. 20"
+                        />
+                      </div>
                     </template>
                     <template v-else>
                       <input
@@ -542,6 +730,60 @@ onMounted(async () => {
             {{ creatingBusiness ? "Adding..." : "Add business" }}
           </button>
         </form>
+      </div>
+
+      <div v-if="sellerBookings.length > 0" class="card space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-display text-lg font-semibold text-uni-navy">Booking requests</h2>
+          <span v-if="pendingBookings.length > 0" class="badge bg-warning/15 text-warning">{{ pendingBookings.length }} pending</span>
+        </div>
+
+        <div class="space-y-2">
+          <div
+            v-for="b in sellerBookings"
+            :key="b.id"
+            class="rounded-control border p-3"
+            :class="b.status === 'PENDING' ? 'border-warning/40 bg-warning/5' : 'border-light-grey opacity-70'"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold text-uni-navy">{{ b.listingName }}</span>
+              <span class="badge" :class="BOOKING_STATUS_STYLES[b.status]">{{ b.status.charAt(0) + b.status.slice(1).toLowerCase() }}</span>
+            </div>
+            <p class="mt-0.5 text-xs text-medium-grey">{{ b.buyerName }} &middot; {{ formatDateTime(b.preferredAt) }}</p>
+            <p v-if="b.note" class="mt-1 text-xs text-charcoal">"{{ b.note }}"</p>
+
+            <div v-if="b.status === 'PENDING' && decliningBookingId !== b.id" class="mt-2 flex gap-2">
+              <button
+                class="inline-flex items-center justify-center rounded-control bg-success px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                :disabled="bookingActing === b.id"
+                @click="acceptBooking(b.id)"
+              >
+                Accept
+              </button>
+              <button
+                class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-3 py-1.5 text-xs font-semibold text-danger disabled:opacity-50"
+                :disabled="bookingActing === b.id"
+                @click="startDecline(b.id)"
+              >
+                Decline
+              </button>
+            </div>
+
+            <div v-if="decliningBookingId === b.id" class="mt-2 space-y-2">
+              <textarea v-model="declineReason" rows="2" placeholder="Reason (optional, shown to the student)" class="input-field resize-y"></textarea>
+              <div class="flex justify-end gap-2">
+                <button class="btn-secondary text-xs" @click="decliningBookingId = null">Cancel</button>
+                <button
+                  class="inline-flex items-center justify-center rounded-control bg-danger px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                  :disabled="bookingActing === b.id"
+                  @click="confirmDecline(b.id)"
+                >
+                  Decline booking
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="businesses.length > 0" class="card space-y-3">

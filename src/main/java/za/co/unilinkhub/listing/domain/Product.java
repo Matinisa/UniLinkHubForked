@@ -16,6 +16,7 @@ public class Product extends Listing {
 
     private Integer stockQuantity;
     private String imageUrl;
+    private Integer lowStockThreshold;
 
     private Product(UUID businessId, String name, String description, String category,
                      BigDecimal price, Integer stockQuantity, String imageUrl) {
@@ -40,5 +41,14 @@ public class Product extends Listing {
 
     public void updateImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public void updateLowStockThreshold(Integer lowStockThreshold) {
+        this.lowStockThreshold = lowStockThreshold;
+    }
+
+    public boolean isLowStock() {
+        return lowStockThreshold != null && stockQuantity != null
+                && stockQuantity > 0 && stockQuantity <= lowStockThreshold;
     }
 }

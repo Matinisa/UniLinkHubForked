@@ -182,6 +182,46 @@ async function loadActivity() {
   }
 }
 
+// ---- Notification preferences ----
+const NOTIFICATION_CATEGORIES: { value: string; label: string; description: string }[] = [
+  { value: "BUSINESS", label: "Business verification updates", description: "When your business is verified or rejected" },
+  { value: "BOOKING", label: "Booking requests", description: "New requests, and accept/decline updates" },
+  { value: "STOCK", label: "Stock & price alerts", description: "When a saved listing restocks, or your stock runs low" },
+  { value: "REVIEW", label: "New reviews", description: "When someone reviews your business" },
+  { value: "ANNOUNCEMENT", label: "Site announcements", description: "Platform updates sent to your notification bell" },
+];
+const enabledCategories = ref<Set<string>>(new Set(NOTIFICATION_CATEGORIES.map((c) => c.value)));
+const savingNotificationPrefs = ref(false);
+const notificationPrefsStatus = ref("");
+
+function resetNotificationPrefsForm() {
+  const disabled = new Set(auth.user?.disabledNotificationCategories ?? []);
+  enabledCategories.value = new Set(NOTIFICATION_CATEGORIES.map((c) => c.value).filter((c) => !disabled.has(c)));
+}
+
+function toggleCategory(value: string) {
+  if (enabledCategories.value.has(value)) {
+    enabledCategories.value.delete(value);
+  } else {
+    enabledCategories.value.add(value);
+  }
+}
+
+async function saveNotificationPreferences() {
+  savingNotificationPrefs.value = true;
+  notificationPrefsStatus.value = "";
+  try {
+    const disabledCategories = NOTIFICATION_CATEGORIES.map((c) => c.value).filter((c) => !enabledCategories.value.has(c));
+    await api.patch("/users/me/notification-preferences", { disabledCategories });
+    notificationPrefsStatus.value = "Preferences saved.";
+    await auth.fetchCurrentUser();
+  } catch (err) {
+    notificationPrefsStatus.value = extractErrorMessage(err);
+  } finally {
+    savingNotificationPrefs.value = false;
+  }
+}
+
 // ---- Deactivate account ----
 const deactivateConfirmOpen = ref(false);
 const deactivatePassword = ref("");
@@ -204,6 +244,7 @@ async function confirmDeactivate() {
 
 onMounted(async () => {
   resetProfileForm();
+  resetNotificationPrefsForm();
   await loadBusinesses();
   await Promise.all([saved.fetchSaved(), followed.fetchFollowed()]);
   await loadActivity();
@@ -400,6 +441,40 @@ onMounted(async () => {
       <div class="flex justify-end">
         <button class="btn-primary text-sm" :disabled="savingPassword" @click="savePassword">
           {{ savingPassword ? "Updating..." : "Update password" }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Notification preferences -->
+    <div class="card space-y-1">
+      <h2 class="font-display text-base font-semibold text-uni-navy">Notification preferences</h2>
+      <p class="mb-2 text-sm text-medium-grey">
+        Choose which in-app notifications you'd like to receive - these only appear in the bell icon, there's no email delivery yet.
+      </p>
+
+      <label
+        v-for="c in NOTIFICATION_CATEGORIES"
+        :key="c.value"
+        class="flex items-center justify-between border-t border-light-grey py-3"
+      >
+        <div>
+          <p class="text-sm font-medium text-charcoal">{{ c.label }}</p>
+          <p class="text-xs text-medium-grey">{{ c.description }}</p>
+        </div>
+        <input
+          type="checkbox"
+          class="h-5 w-5 accent-campus-teal"
+          :checked="enabledCategories.has(c.value)"
+          @change="toggleCategory(c.value)"
+        />
+      </label>
+
+      <p v-if="notificationPrefsStatus" class="pt-1 text-sm" :class="notificationPrefsStatus === 'Preferences saved.' ? 'text-success' : 'text-danger'">
+        {{ notificationPrefsStatus }}
+      </p>
+      <div class="flex justify-end pt-2">
+        <button class="btn-primary text-sm" :disabled="savingNotificationPrefs" @click="saveNotificationPreferences">
+          {{ savingNotificationPrefs ? "Saving..." : "Save preferences" }}
         </button>
       </div>
     </div>
