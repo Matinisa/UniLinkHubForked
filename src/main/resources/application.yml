@@ -2,9 +2,10 @@ spring:
   application:
     name: unilinkhub
   datasource:
-    url: jdbc:postgresql://localhost:5432/unilinkhub
+    url: jdbc:mysql://localhost:3306/unilinkhub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:unilinkhub}
     password: ${DB_PASSWORD:unilinkhub}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: update
@@ -12,9 +13,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
 
 server:
-  port: 8080
+  # 8080 is taken by another local project on this machine - using 8081 to avoid clashing with it.
+  port: ${SERVER_PORT:8081}
 
 unilinkhub:
   security:
