@@ -1,4 +1,18 @@
 package za.co.unilinkhub.listing.repository;
 
-public class ListingRepository {
+import za.co.unilinkhub.listing.domain.Listing;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface ListingRepository {
+
+    Listing save(Listing listing);
+
+    Optional<Listing> findById(UUID id);
+
+    List<Listing> findByBusinessId(UUID businessId);
+
+    List<Listing> search(String category, String keyword);
 }

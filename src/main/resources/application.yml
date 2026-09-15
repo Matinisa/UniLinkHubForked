@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: unilinkhub
+  datasource:
+    url: jdbc:postgresql://localhost:5432/unilinkhub
+    username: ${DB_USERNAME:unilinkhub}
+    password: ${DB_PASSWORD:unilinkhub}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+unilinkhub:
+  security:
+    jwt:
+      # Override with a real 32+ byte secret via the JWT_SECRET env var before deploying anywhere.
+      secret: ${JWT_SECRET:change-this-in-production-to-a-long-random-secret-at-least-32-bytes}
+      expiration-ms: 86400000
+
+logging:
+  level:
+    za.co.unilinkhub: DEBUG

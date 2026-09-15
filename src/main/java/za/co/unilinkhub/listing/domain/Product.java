@@ -1,4 +1,38 @@
 package za.co.unilinkhub.listing.domain;
 
-public class Product {
+import jakarta.persistence.DiscriminatorValue;
+import jakarta.persistence.Entity;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Entity
+@DiscriminatorValue("PRODUCT")
+@Getter
+@NoArgsConstructor
+public class Product extends Listing {
+
+    private Integer stockQuantity;
+    private String imageUrl;
+
+    private Product(UUID businessId, String name, String description, String category,
+                     BigDecimal price, Integer stockQuantity, String imageUrl) {
+        super(businessId, name, description, category, price);
+        this.stockQuantity = stockQuantity;
+        this.imageUrl = imageUrl;
+    }
+
+    public static Product create(UUID businessId, String name, String description, String category,
+                                  BigDecimal price, Integer stockQuantity, String imageUrl) {
+        return new Product(businessId, name, description, category, price, stockQuantity, imageUrl);
+    }
+
+    public void updateStock(int quantity) {
+        this.stockQuantity = quantity;
+        if (quantity <= 0) {
+            deactivate();
+        }
+    }
 }

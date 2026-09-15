@@ -1,4 +1,7 @@
 package za.co.unilinkhub.listing.domain;
 
-public class ListingStatus {
+public enum ListingStatus {
+    ACTIVE,
+    INACTIVE,
+    SOLD_OUT
 }

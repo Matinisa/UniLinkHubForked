@@ -1,4 +1,8 @@
 package za.co.unilinkhub.user.domain;
 
-public class AccountStatus {
+public enum AccountStatus {
+    PENDING_VERIFICATION,
+    ACTIVE,
+    SUSPENDED,
+    DEACTIVATED
 }

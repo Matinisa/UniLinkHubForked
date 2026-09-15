@@ -1,4 +1,24 @@
 package za.co.unilinkhub.business.application;
 
-public class BusinessDTO {
+import za.co.unilinkhub.business.domain.Business;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public record BusinessDTO(
+        UUID id,
+        UUID ownerId,
+        String businessName,
+        String description,
+        String category,
+        String verificationStatus,
+        LocalDateTime createdAt
+) {
+    public static BusinessDTO from(Business business) {
+        return new BusinessDTO(
+                business.getId(), business.getOwnerId(), business.getBusinessName(),
+                business.getDescription(), business.getCategory(),
+                business.getVerificationStatus().name(), business.getCreatedAt()
+        );
+    }
 }

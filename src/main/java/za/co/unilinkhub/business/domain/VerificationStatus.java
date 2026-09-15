@@ -1,4 +1,7 @@
 package za.co.unilinkhub.business.domain;
 
-public class VerificationStatus {
+public enum VerificationStatus {
+    PENDING,
+    VERIFIED,
+    REJECTED
 }
