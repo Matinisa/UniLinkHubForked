@@ -2,9 +2,9 @@
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import AdminNav from "@/components/AdminNav.vue";
-import type { AdminBusinessView, ReportSummaryView, ReportStatus, ReportStatusCounts } from "@/lib/types";
+import type { AdminBusinessView, ReportSummaryView, ReportStatus, ReportStatusCounts, UserResponse } from "@/lib/types";
 
-type Section = "reports" | "businesses";
+type Section = "reports" | "businesses" | "accounts";
 const activeSection = ref<Section>("reports");
 
 // ---- Reports ----
@@ -168,8 +168,40 @@ async function decide(id: string, action: "verify" | "reject") {
   }
 }
 
+// ---- Student accounts ----
+const pendingAccounts = ref<UserResponse[]>([]);
+const accountsLoading = ref(false);
+const actingAccountId = ref<string | null>(null);
+const accountsError = ref("");
+
+async function loadPendingAccounts() {
+  accountsLoading.value = true;
+  accountsError.value = "";
+  try {
+    const { data } = await api.get<UserResponse[]>("/admin/users/pending");
+    pendingAccounts.value = data;
+  } catch (err) {
+    accountsError.value = extractErrorMessage(err);
+  } finally {
+    accountsLoading.value = false;
+  }
+}
+
+async function approveAccount(id: string) {
+  actingAccountId.value = id;
+  accountsError.value = "";
+  try {
+    await api.post(`/admin/users/${id}/approve`);
+    await loadPendingAccounts();
+  } catch (err) {
+    accountsError.value = extractErrorMessage(err);
+  } finally {
+    actingAccountId.value = null;
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadCounts(), loadReports(), loadBusinesses()]);
+  await Promise.all([loadCounts(), loadReports(), loadBusinesses(), loadPendingAccounts()]);
 });
 </script>
 
@@ -199,6 +231,14 @@ onMounted(async () => {
         >
           Business verification
           <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ pending.length }}</span>
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'accounts' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'accounts'"
+        >
+          Student accounts
+          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ pendingAccounts.length }}</span>
         </button>
       </div>
 
@@ -332,7 +372,7 @@ onMounted(async () => {
       </section>
 
       <!-- Business verification section -->
-      <section v-else class="space-y-6">
+      <section v-else-if="activeSection === 'businesses'" class="space-y-6">
         <p v-if="businessesError" class="text-sm text-danger">{{ businessesError }}</p>
         <p v-else-if="businessesLoading" class="text-sm text-medium-grey">Loading...</p>
 
@@ -403,6 +443,48 @@ onMounted(async () => {
             </div>
           </div>
         </template>
+      </section>
+
+      <!-- Student accounts section -->
+      <section v-else class="space-y-6">
+        <p v-if="accountsError" class="text-sm text-danger">{{ accountsError }}</p>
+        <p v-else-if="accountsLoading" class="text-sm text-medium-grey">Loading...</p>
+
+        <div>
+          <div class="mb-3 flex items-center gap-2">
+            <h3 class="font-display text-[15px] font-semibold text-uni-navy">Awaiting approval</h3>
+            <span class="badge bg-warning/15 text-warning">{{ pendingAccounts.length }} pending</span>
+          </div>
+
+          <p v-if="!accountsLoading && pendingAccounts.length === 0" class="card text-sm text-medium-grey">
+            No student accounts waiting on approval right now.
+          </p>
+
+          <div v-else class="flex flex-col gap-3">
+            <div
+              v-for="u in pendingAccounts"
+              :key="u.id"
+              class="card flex flex-col items-start justify-between gap-4 p-[18px] sm:flex-row"
+            >
+              <div class="flex-1">
+                <div class="mb-1.5 flex items-center gap-2.5">
+                  <span class="text-base font-semibold text-uni-navy">{{ u.firstName }} {{ u.lastName }}</span>
+                  <span class="badge bg-sky-blue/20 text-uni-navy">#{{ u.studentNumber }}</span>
+                </div>
+                <p class="text-[13px] text-charcoal">{{ u.email }}</p>
+              </div>
+              <div class="flex shrink-0 gap-2.5">
+                <button
+                  class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  :disabled="actingAccountId === u.id"
+                  @click="approveAccount(u.id)"
+                >
+                  Approve
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   </div>

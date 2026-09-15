@@ -2,12 +2,12 @@ package za.co.unilinkhub.user.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.security.CurrentUser;
 import za.co.unilinkhub.user.application.ChangePasswordUseCase;
@@ -15,10 +15,10 @@ import za.co.unilinkhub.user.application.UpdateProfileUseCase;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -26,29 +26,41 @@ public class UserController {
     private final UpdateProfileUseCase updateProfileUseCase;
     private final ChangePasswordUseCase changePasswordUseCase;
 
-    @GetMapping("/me")
+    @GetMapping("/api/users/me")
     public UserResponse me(@CurrentUser UUID userId) {
         return UserResponse.from(userService.getById(userId));
     }
 
-    @PatchMapping("/me")
+    @PatchMapping("/api/users/me")
     public UserResponse updateProfile(@CurrentUser UUID userId, @Valid @RequestBody UserRequest.UpdateProfile request) {
         UserDTO updated = updateProfileUseCase.execute(userId, request.firstName(), request.lastName(), request.phoneNumber());
         return UserResponse.from(updated);
     }
 
-    @PostMapping("/me/change-password")
+    @PostMapping("/api/users/me/change-password")
     public void changePassword(@CurrentUser UUID userId, @Valid @RequestBody UserRequest.ChangePassword request) {
         changePasswordUseCase.execute(userId, request.currentPassword(), request.newPassword());
     }
 
-    @PostMapping("/me/become-seller")
+    @PostMapping("/api/users/me/become-seller")
     public UserResponse becomeSeller(@CurrentUser UUID userId) {
         return UserResponse.from(userService.becomeSeller(userId));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/api/users/{id}")
     public UserResponse getById(@PathVariable UUID id) {
         return UserResponse.from(userService.getById(id));
+    }
+
+    @GetMapping("/api/admin/users/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<UserResponse> pendingAccounts() {
+        return userService.listPendingAccounts().stream().map(UserResponse::from).toList();
+    }
+
+    @PostMapping("/api/admin/users/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserResponse approveAccount(@PathVariable UUID id) {
+        return UserResponse.from(userService.approveAccount(id));
     }
 }

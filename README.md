@@ -24,7 +24,8 @@ messaging, payments, appointments, notifications) are intentionally left as the 
 packages they started as.
 
 - Student registration + email verification (link is logged to the console — no SMTP
-  provider is wired up yet) and JWT login.
+  provider is wired up yet) and JWT login. As a fallback to that (since there's no real inbox
+  to click the link from), the admin console can also approve a pending account directly.
 - Single-account model: any student can call "Become a Seller" from their dashboard rather
   than registering a separate seller account.
 - Register/manage a business, request verification.
@@ -35,6 +36,9 @@ packages they started as.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
   resolves reporter/target ids into names for display, and a status-counts endpoint.
 - Business verification: admin can list pending businesses and verify/reject them.
+- Student account approval: admin can list accounts stuck in PENDING_VERIFICATION and approve
+  them directly, unblocking login without needing to click the (console-only) verification
+  link.
 - Saved/favourited listings (heart toggle on any listing card or the listing detail page),
   recently viewed listings (tracked client-side, per browser), and a "your reports" status
   list - the Buyer Dashboard requirements from Section 11.1, all on the same single dashboard
@@ -44,7 +48,8 @@ packages they started as.
   password (with current-password verification).
 - A functional Vue UI for all of the above: browse with filters, listing detail + report,
   provider profile, login/register, account settings, a combined buyer/seller dashboard, and
-  an admin console (report queue, business verification) gated by role.
+  an admin console (report queue, business verification, student account approval) gated by
+  role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

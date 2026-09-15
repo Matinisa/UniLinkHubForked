@@ -4,9 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.common.exception.BadRequestException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
+import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
 import za.co.unilinkhub.user.repository.UserRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -29,6 +31,18 @@ public class UserService {
     public UserDTO becomeSeller(UUID userId) {
         User user = findUser(userId);
         user.becomeSeller();
+        return UserDTO.from(userRepository.save(user));
+    }
+
+    public List<UserDTO> listPendingAccounts() {
+        return userRepository.findByAccountStatus(AccountStatus.PENDING_VERIFICATION).stream()
+                .map(UserDTO::from)
+                .toList();
+    }
+
+    public UserDTO approveAccount(UUID userId) {
+        User user = findUser(userId);
+        user.approve();
         return UserDTO.from(userRepository.save(user));
     }
 

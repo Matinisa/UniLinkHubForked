@@ -96,6 +96,14 @@ public class User {
         this.verificationToken = null;
     }
 
+    public void approve() {
+        if (this.accountStatus != AccountStatus.PENDING_VERIFICATION) {
+            throw new IllegalStateException("Account is not pending verification");
+        }
+        this.accountStatus = AccountStatus.ACTIVE;
+        this.verificationToken = null;
+    }
+
     public void becomeSeller() {
         this.seller = true;
     }

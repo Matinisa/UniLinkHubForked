@@ -1,7 +1,9 @@
 package za.co.unilinkhub.user.repository;
 
+import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +22,8 @@ public interface UserRepository {
     Optional<User> findByStudentNumber(String studentNumber);
 
     Optional<User> findByVerificationToken(String verificationToken);
+
+    List<User> findByAccountStatus(AccountStatus accountStatus);
 
     boolean existsByEmail(String email);
 
