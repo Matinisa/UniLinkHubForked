@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import za.co.unilinkhub.listing.domain.Listing;
+import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 
 import java.math.BigDecimal;
@@ -29,4 +30,7 @@ public interface JpaListingRepository extends JpaRepository<Listing, UUID>, List
             """)
     List<Listing> search(@Param("category") String category, @Param("keyword") String keyword,
                           @Param("minPrice") BigDecimal minPrice, @Param("maxPrice") BigDecimal maxPrice);
+
+    @Override
+    long countByStatus(ListingStatus status);
 }

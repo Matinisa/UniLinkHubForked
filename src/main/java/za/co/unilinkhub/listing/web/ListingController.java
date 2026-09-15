@@ -48,7 +48,7 @@ public class ListingController {
     }
 
     public record UpdateListingRequest(String name, String description, String category, BigDecimal price,
-                                        Integer stockQuantity, Integer durationMinutes,
+                                        Integer stockQuantity, String imageUrl, Integer durationMinutes,
                                         String availabilitySchedule, String status) {
     }
 
@@ -69,7 +69,7 @@ public class ListingController {
     @PatchMapping("/{id}")
     public ListingDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateListingRequest request) {
         return listingService.update(userId, id, request.name(), request.description(), request.category(),
-                request.price(), request.stockQuantity(), request.durationMinutes(),
+                request.price(), request.stockQuantity(), request.imageUrl(), request.durationMinutes(),
                 request.availabilitySchedule(), request.status());
     }
 

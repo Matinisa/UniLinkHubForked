@@ -35,4 +35,8 @@ public class Product extends Listing {
             deactivate();
         }
     }
+
+    public void updateImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 }

@@ -43,14 +43,19 @@ public class ListingService {
     }
 
     public ListingDTO update(UUID requesterId, UUID listingId, String name, String description, String category,
-                              BigDecimal price, Integer stockQuantity, Integer durationMinutes,
+                              BigDecimal price, Integer stockQuantity, String imageUrl, Integer durationMinutes,
                               String availabilitySchedule, String status) {
         Listing listing = findListing(listingId);
         assertOwnership(listing.getBusinessId(), requesterId);
         listing.updateBasicDetails(name, description, category, price);
 
-        if (listing instanceof Product product && stockQuantity != null) {
-            product.updateStock(stockQuantity);
+        if (listing instanceof Product product) {
+            if (stockQuantity != null) {
+                product.updateStock(stockQuantity);
+            }
+            if (imageUrl != null) {
+                product.updateImageUrl(imageUrl.isBlank() ? null : imageUrl);
+            }
         }
         if (listing instanceof za.co.unilinkhub.listing.domain.Service service) {
             if (durationMinutes != null) {

@@ -1,6 +1,7 @@
 package za.co.unilinkhub.listing.repository;
 
 import za.co.unilinkhub.listing.domain.Listing;
+import za.co.unilinkhub.listing.domain.ListingStatus;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,4 +17,6 @@ public interface ListingRepository {
     List<Listing> findByBusinessId(UUID businessId);
 
     List<Listing> search(String category, String keyword, BigDecimal minPrice, BigDecimal maxPrice);
+
+    long countByStatus(ListingStatus status);
 }

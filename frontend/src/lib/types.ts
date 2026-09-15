@@ -116,3 +116,11 @@ export interface ProviderProfileDTO {
   totalViews: number;
   memberSince: string;
 }
+
+export interface AdminStatsDTO {
+  totalStudents: number;
+  pendingAccounts: number;
+  businesses: { pending: number; verified: number; rejected: number };
+  listings: { active: number; inactive: number; soldOut: number };
+  reports: ReportStatusCounts;
+}

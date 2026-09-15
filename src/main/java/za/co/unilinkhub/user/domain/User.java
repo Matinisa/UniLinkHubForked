@@ -66,6 +66,9 @@ public class User {
     @Column(name = "verification_token", length = 64)
     private String verificationToken;
 
+    @Column(name = "password_reset_token", length = 64)
+    private String passwordResetToken;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -118,6 +121,18 @@ public class User {
 
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
+    }
+
+    public void requestPasswordReset(String token) {
+        this.passwordResetToken = token;
+    }
+
+    public void resetPassword(String token, String newPasswordHash) {
+        if (this.passwordResetToken == null || !this.passwordResetToken.equals(token)) {
+            throw new IllegalArgumentException("Invalid or expired reset code");
+        }
+        this.passwordHash = newPasswordHash;
+        this.passwordResetToken = null;
     }
 
     public void updateProfile(String firstName, String lastName, String phoneNumber) {

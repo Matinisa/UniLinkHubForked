@@ -33,4 +33,15 @@ public class UserRequest {
             @NotBlank String newPassword
     ) {
     }
+
+    public record ForgotPassword(
+            @NotBlank @Email String email
+    ) {
+    }
+
+    public record ResetPassword(
+            @NotBlank String token,
+            @NotBlank String newPassword
+    ) {
+    }
 }

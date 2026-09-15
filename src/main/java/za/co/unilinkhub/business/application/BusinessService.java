@@ -49,9 +49,30 @@ public class BusinessService {
     }
 
     public ProviderProfileDTO getProviderProfile(UUID businessId) {
-        Business business = findById(businessId);
+        return toProviderProfile(findById(businessId));
+    }
+
+    public List<BusinessDTO> getByOwner(UUID ownerId) {
+        return businessRepository.findByOwnerId(ownerId).stream().map(BusinessDTO::from).toList();
+    }
+
+    public List<ProviderProfileDTO> listPublic(String keyword, String category, boolean verifiedOnly) {
+        List<Business> businesses = businessRepository.findByVerificationStatusNot(VerificationStatus.REJECTED);
+
+        return businesses.stream()
+                .filter(b -> !verifiedOnly || b.getVerificationStatus() == VerificationStatus.VERIFIED)
+                .filter(b -> category == null || category.isBlank() || b.getCategory().equalsIgnoreCase(category))
+                .filter(b -> keyword == null || keyword.isBlank()
+                        || b.getBusinessName().toLowerCase().contains(keyword.toLowerCase())
+                        || b.getDescription().toLowerCase().contains(keyword.toLowerCase()))
+                .map(this::toProviderProfile)
+                .sorted(Comparator.comparing(ProviderProfileDTO::businessName))
+                .toList();
+    }
+
+    private ProviderProfileDTO toProviderProfile(Business business) {
         UserDTO owner = userService.getById(business.getOwnerId());
-        List<Listing> listings = listingRepository.findByBusinessId(businessId);
+        List<Listing> listings = listingRepository.findByBusinessId(business.getId());
 
         long activeCount = listings.stream().filter(l -> l.getStatus() == ListingStatus.ACTIVE).count();
         long totalViews = listings.stream().mapToLong(Listing::getViewCount).sum();
@@ -61,10 +82,6 @@ public class BusinessService {
                 business.getVerificationStatus().name(), business.getOwnerId(),
                 owner.firstName() + " " + owner.lastName(), activeCount, totalViews, business.getCreatedAt()
         );
-    }
-
-    public List<BusinessDTO> getByOwner(UUID ownerId) {
-        return businessRepository.findByOwnerId(ownerId).stream().map(BusinessDTO::from).toList();
     }
 
     public List<AdminBusinessView> listByStatus(VerificationStatus status) {

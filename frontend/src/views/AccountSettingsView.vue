@@ -84,6 +84,25 @@ async function saveBusiness() {
   }
 }
 
+const resubmitting = ref(false);
+
+async function resubmitVerification() {
+  if (!selectedBusiness.value) return;
+  resubmitting.value = true;
+  businessStatus.value = "";
+  businessError.value = "";
+  try {
+    const { data } = await api.post<BusinessDTO>(`/businesses/${selectedBusiness.value.id}/request-verification`);
+    const index = businesses.value.findIndex((b) => b.id === data.id);
+    if (index !== -1) businesses.value[index] = data;
+    businessStatus.value = "Resubmitted - an admin will take another look.";
+  } catch (err) {
+    businessError.value = extractErrorMessage(err);
+  } finally {
+    resubmitting.value = false;
+  }
+}
+
 // ---- Password ----
 const passwordForm = ref({ currentPassword: "", newPassword: "", confirmPassword: "" });
 const savingPassword = ref(false);
@@ -160,6 +179,15 @@ onMounted(() => {
           <option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.businessName }}</option>
         </select>
       </div>
+
+      <div v-if="selectedBusiness?.verificationStatus === 'REJECTED'" class="flex items-start gap-2.5 rounded-control bg-danger/10 p-3">
+        <span class="badge bg-danger/15 text-danger shrink-0">Rejected</span>
+        <p class="text-[13px] text-charcoal">
+          This business wasn't approved on its last review. Update the details below if needed,
+          then resubmit for another look.
+        </p>
+      </div>
+
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="sm:col-span-2">
           <label class="mb-1 block text-xs font-medium text-medium-grey">Business name</label>
@@ -189,9 +217,17 @@ onMounted(() => {
       </div>
       <p v-if="businessError" class="text-sm text-danger">{{ businessError }}</p>
       <p v-else-if="businessStatus" class="text-sm text-success">{{ businessStatus }}</p>
-      <div class="flex justify-end">
-        <button class="btn-primary text-sm" :disabled="savingBusiness" @click="saveBusiness">
+      <div class="flex flex-wrap justify-end gap-2">
+        <button class="btn-secondary text-sm" :disabled="savingBusiness" @click="saveBusiness">
           {{ savingBusiness ? "Saving..." : "Save business" }}
+        </button>
+        <button
+          v-if="selectedBusiness?.verificationStatus === 'REJECTED'"
+          class="btn-primary text-sm"
+          :disabled="resubmitting"
+          @click="resubmitVerification"
+        >
+          {{ resubmitting ? "Resubmitting..." : "Resubmit for verification" }}
         </button>
       </div>
     </div>

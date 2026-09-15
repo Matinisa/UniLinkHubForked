@@ -41,6 +41,9 @@ async function submit() {
       </form>
       <p v-if="error" class="text-sm text-danger">{{ error }}</p>
       <p class="text-sm text-medium-grey">
+        <RouterLink to="/forgot-password" class="text-campus-teal underline">Forgot your password?</RouterLink>
+      </p>
+      <p class="text-sm text-medium-grey">
         New to UniLinkHub?
         <RouterLink to="/register" class="text-campus-teal underline">Create an account</RouterLink>
       </p>

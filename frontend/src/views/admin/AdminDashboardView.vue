@@ -2,10 +2,35 @@
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import AdminNav from "@/components/AdminNav.vue";
-import type { AdminBusinessView, ReportSummaryView, ReportStatus, ReportStatusCounts, UserResponse } from "@/lib/types";
+import type {
+  AdminBusinessView,
+  AdminStatsDTO,
+  ReportSummaryView,
+  ReportStatus,
+  ReportStatusCounts,
+  UserResponse,
+} from "@/lib/types";
 
-type Section = "reports" | "businesses" | "accounts";
-const activeSection = ref<Section>("reports");
+type Section = "overview" | "reports" | "businesses" | "accounts";
+const activeSection = ref<Section>("overview");
+
+// ---- Overview ----
+const stats = ref<AdminStatsDTO | null>(null);
+const statsLoading = ref(false);
+const statsError = ref("");
+
+async function loadStats() {
+  statsLoading.value = true;
+  statsError.value = "";
+  try {
+    const { data } = await api.get<AdminStatsDTO>("/admin/stats");
+    stats.value = data;
+  } catch (err) {
+    statsError.value = extractErrorMessage(err);
+  } finally {
+    statsLoading.value = false;
+  }
+}
 
 // ---- Reports ----
 const reports = ref<ReportSummaryView[]>([]);
@@ -201,7 +226,7 @@ async function approveAccount(id: string) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadCounts(), loadReports(), loadBusinesses(), loadPendingAccounts()]);
+  await Promise.all([loadStats(), loadCounts(), loadReports(), loadBusinesses(), loadPendingAccounts()]);
 });
 </script>
 
@@ -215,7 +240,14 @@ onMounted(async () => {
         <p class="text-sm text-medium-grey">Trust &amp; safety and business verification, in one place.</p>
       </div>
 
-      <div class="flex gap-2 border-b border-light-grey">
+      <div class="flex gap-2 overflow-x-auto border-b border-light-grey">
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'overview' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'overview'"
+        >
+          Overview
+        </button>
         <button
           class="border-b-2 px-1 pb-3 text-sm font-semibold"
           :class="activeSection === 'reports' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
@@ -243,7 +275,96 @@ onMounted(async () => {
       </div>
 
       <!-- Reports section -->
-      <section v-if="activeSection === 'reports'" class="space-y-5">
+      <!-- Overview section -->
+      <section v-if="activeSection === 'overview'" class="space-y-6">
+        <p v-if="statsError" class="text-sm text-danger">{{ statsError }}</p>
+        <p v-else-if="statsLoading || !stats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Students</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ stats.totalStudents }}</p>
+              <p class="text-xs text-medium-grey">{{ stats.pendingAccounts }} pending approval</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Businesses</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">
+                {{ stats.businesses.pending + stats.businesses.verified + stats.businesses.rejected }}
+              </p>
+              <p class="text-xs text-medium-grey">{{ stats.businesses.pending }} pending review</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Active listings</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ stats.listings.active }}</p>
+              <p class="text-xs text-medium-grey">
+                {{ stats.listings.active + stats.listings.inactive + stats.listings.soldOut }} total ever created
+              </p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Open reports</p>
+              <p class="font-display text-2xl font-bold text-danger">{{ stats.reports.open }}</p>
+              <p class="text-xs text-medium-grey">{{ stats.reports.resolved }} resolved</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="card space-y-2.5">
+              <h3 class="font-display text-sm font-semibold text-uni-navy">Businesses by status</h3>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Verified</span>
+                <span class="badge bg-success/15 text-success">{{ stats.businesses.verified }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Pending</span>
+                <span class="badge bg-warning/15 text-warning">{{ stats.businesses.pending }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Rejected</span>
+                <span class="badge bg-danger/15 text-danger">{{ stats.businesses.rejected }}</span>
+              </div>
+            </div>
+
+            <div class="card space-y-2.5">
+              <h3 class="font-display text-sm font-semibold text-uni-navy">Listings by status</h3>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Active</span>
+                <span class="badge bg-success/15 text-success">{{ stats.listings.active }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Inactive</span>
+                <span class="badge bg-medium-grey/15 text-medium-grey">{{ stats.listings.inactive }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Sold out</span>
+                <span class="badge bg-medium-grey/15 text-medium-grey">{{ stats.listings.soldOut }}</span>
+              </div>
+            </div>
+
+            <div class="card space-y-2.5">
+              <h3 class="font-display text-sm font-semibold text-uni-navy">Reports by status</h3>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Open</span>
+                <span class="badge bg-warning/15 text-warning">{{ stats.reports.open }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Under review</span>
+                <span class="badge bg-info/15 text-info">{{ stats.reports.underReview }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Resolved</span>
+                <span class="badge bg-success/15 text-success">{{ stats.reports.resolved }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-charcoal">Dismissed</span>
+                <span class="badge bg-medium-grey/15 text-medium-grey">{{ stats.reports.dismissed }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <section v-else-if="activeSection === 'reports'" class="space-y-5">
         <p v-if="reportsError" class="text-sm text-danger">{{ reportsError }}</p>
 
         <div class="flex flex-wrap gap-2">

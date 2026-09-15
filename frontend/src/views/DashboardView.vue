@@ -189,6 +189,7 @@ const editForm = ref({
   price: 0,
   status: "ACTIVE" as "ACTIVE" | "INACTIVE",
   stockQuantity: 0,
+  imageUrl: "",
   durationMinutes: 0,
   availabilitySchedule: "",
 });
@@ -203,6 +204,7 @@ function startEdit(listing: ListingDTO) {
     price: listing.price,
     status: listing.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     stockQuantity: listing.stockQuantity ?? 0,
+    imageUrl: listing.imageUrl ?? "",
     durationMinutes: listing.durationMinutes ?? 0,
     availabilitySchedule: listing.availabilitySchedule ?? "",
   };
@@ -223,6 +225,7 @@ async function saveEdit(listing: ListingDTO) {
       price: editForm.value.price,
       status: editForm.value.status,
       stockQuantity: listing.type === "PRODUCT" ? editForm.value.stockQuantity : undefined,
+      imageUrl: listing.type === "PRODUCT" ? editForm.value.imageUrl : undefined,
       durationMinutes: listing.type === "SERVICE" ? editForm.value.durationMinutes : undefined,
       availabilitySchedule: listing.type === "SERVICE" ? editForm.value.availabilitySchedule : undefined,
     });
@@ -371,14 +374,20 @@ onMounted(async () => {
                     </select>
                     <textarea v-model="editForm.description" class="input-field sm:col-span-2" rows="2"></textarea>
                     <input v-model.number="editForm.price" type="number" min="0" step="0.01" class="input-field" placeholder="Price (ZAR)" />
-                    <input
-                      v-if="listing.type === 'PRODUCT'"
-                      v-model.number="editForm.stockQuantity"
-                      type="number"
-                      min="0"
-                      class="input-field"
-                      placeholder="Stock quantity"
-                    />
+                    <template v-if="listing.type === 'PRODUCT'">
+                      <input
+                        v-model.number="editForm.stockQuantity"
+                        type="number"
+                        min="0"
+                        class="input-field"
+                        placeholder="Stock quantity"
+                      />
+                      <input
+                        v-model="editForm.imageUrl"
+                        class="input-field sm:col-span-2"
+                        placeholder="Image URL (optional)"
+                      />
+                    </template>
                     <template v-else>
                       <input
                         v-model.number="editForm.durationMinutes"
@@ -455,6 +464,12 @@ onMounted(async () => {
             min="0"
             placeholder="Stock quantity"
             class="input-field"
+          />
+          <input
+            v-if="newListing.kind === 'PRODUCT'"
+            v-model="newListing.imageUrl"
+            placeholder="Image URL (optional)"
+            class="input-field sm:col-span-2"
           />
           <input
             v-if="newListing.kind === 'SERVICE'"

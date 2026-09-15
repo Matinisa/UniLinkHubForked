@@ -14,7 +14,8 @@ function formatPrice(price: number) {
 </script>
 
 <template>
-  <RouterLink :to="`/listings/${listing.id}`" class="card relative flex flex-col gap-2 transition hover:shadow-md">
+  <RouterLink :to="`/listings/${listing.id}`" class="card relative flex flex-col gap-2 overflow-hidden p-0 transition hover:shadow-md">
+    <img v-if="listing.imageUrl" :src="listing.imageUrl" alt="" class="h-32 w-full object-cover" />
     <button
       v-if="auth.isAuthenticated"
       class="absolute right-2.5 top-2.5 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/90"
@@ -35,19 +36,21 @@ function formatPrice(price: number) {
       </svg>
     </button>
 
-    <div class="flex items-start justify-between gap-2 pr-7">
-      <h3 class="font-display text-base font-semibold text-uni-navy">{{ listing.name }}</h3>
-      <span
-        class="badge shrink-0"
-        :class="listing.type === 'PRODUCT' ? 'bg-sky-blue/20 text-uni-navy' : 'bg-academic-gold/20 text-uni-navy'"
-      >
-        {{ listing.type === "PRODUCT" ? "Product" : "Service" }}
-      </span>
-    </div>
-    <p class="line-clamp-2 text-sm text-medium-grey">{{ listing.description }}</p>
-    <div class="mt-auto flex items-center justify-between pt-2">
-      <span class="font-display text-lg font-semibold text-campus-teal">{{ formatPrice(listing.price) }}</span>
-      <span class="text-xs text-medium-grey">{{ listing.category }}</span>
+    <div class="flex flex-1 flex-col gap-2 p-4">
+      <div class="flex items-start justify-between gap-2" :class="{ 'pr-7': !listing.imageUrl }">
+        <h3 class="font-display text-base font-semibold text-uni-navy">{{ listing.name }}</h3>
+        <span
+          class="badge shrink-0"
+          :class="listing.type === 'PRODUCT' ? 'bg-sky-blue/20 text-uni-navy' : 'bg-academic-gold/20 text-uni-navy'"
+        >
+          {{ listing.type === "PRODUCT" ? "Product" : "Service" }}
+        </span>
+      </div>
+      <p class="line-clamp-2 text-sm text-medium-grey">{{ listing.description }}</p>
+      <div class="mt-auto flex items-center justify-between pt-2">
+        <span class="font-display text-lg font-semibold text-campus-teal">{{ formatPrice(listing.price) }}</span>
+        <span class="text-xs text-medium-grey">{{ listing.category }}</span>
+      </div>
     </div>
   </RouterLink>
 </template>

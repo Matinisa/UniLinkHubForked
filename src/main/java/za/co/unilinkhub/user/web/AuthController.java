@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.security.JwtService;
 import za.co.unilinkhub.security.UserPrincipal;
 import za.co.unilinkhub.user.application.RegisterUserUseCase;
+import za.co.unilinkhub.user.application.RequestPasswordResetUseCase;
+import za.co.unilinkhub.user.application.ResetPasswordUseCase;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 
@@ -28,6 +30,8 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RequestPasswordResetUseCase requestPasswordResetUseCase;
+    private final ResetPasswordUseCase resetPasswordUseCase;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -53,5 +57,17 @@ public class AuthController {
         String token = jwtService.generateToken(principal);
         UserDTO userDTO = userService.getById(principal.getId());
         return new AuthResponse(token, UserResponse.from(userDTO));
+    }
+
+    @PostMapping("/forgot-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void forgotPassword(@Valid @RequestBody UserRequest.ForgotPassword request) {
+        requestPasswordResetUseCase.execute(request.email());
+    }
+
+    @PostMapping("/reset-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resetPassword(@Valid @RequestBody UserRequest.ResetPassword request) {
+        resetPasswordUseCase.execute(request.token(), request.newPassword());
     }
 }

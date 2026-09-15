@@ -61,6 +61,13 @@ public class BusinessController {
         return businessService.getById(id);
     }
 
+    @GetMapping("/api/businesses")
+    public List<ProviderProfileDTO> directory(@RequestParam(required = false) String keyword,
+                                               @RequestParam(required = false) String category,
+                                               @RequestParam(defaultValue = "false") boolean verifiedOnly) {
+        return businessService.listPublic(keyword, category, verifiedOnly);
+    }
+
     @GetMapping("/api/businesses/{id}/profile")
     public ProviderProfileDTO profile(@PathVariable UUID id) {
         return businessService.getProviderProfile(id);

@@ -23,7 +23,11 @@ public interface UserRepository {
 
     Optional<User> findByVerificationToken(String verificationToken);
 
+    Optional<User> findByPasswordResetToken(String passwordResetToken);
+
     List<User> findByAccountStatus(AccountStatus accountStatus);
+
+    long countAll();
 
     boolean existsByEmail(String email);
 

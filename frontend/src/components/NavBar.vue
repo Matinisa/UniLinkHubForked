@@ -23,6 +23,9 @@ function handleLogout() {
         <RouterLink to="/" class="text-sm font-medium text-charcoal hover:text-campus-teal">
           Browse
         </RouterLink>
+        <RouterLink to="/providers" class="text-sm font-medium text-charcoal hover:text-campus-teal">
+          Providers
+        </RouterLink>
 
         <template v-if="auth.isAuthenticated">
           <RouterLink to="/dashboard" class="text-sm font-medium text-charcoal hover:text-campus-teal">

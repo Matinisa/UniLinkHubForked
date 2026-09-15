@@ -58,7 +58,9 @@ onMounted(load);
 
 <template>
   <section v-if="listing" class="mx-auto max-w-2xl space-y-4">
-    <div class="card space-y-3">
+    <div class="card overflow-hidden p-0">
+      <img v-if="listing.imageUrl" :src="listing.imageUrl" alt="" class="h-56 w-full object-cover" />
+      <div class="space-y-3 p-4">
       <div class="flex items-start justify-between gap-2">
         <h1 class="font-display text-2xl font-bold text-uni-navy">{{ listing.name }}</h1>
         <div class="flex shrink-0 items-center gap-2">
@@ -104,6 +106,7 @@ onMounted(load);
         <dt class="inline font-medium">Availability:</dt>
         <dd class="inline"> {{ listing.availabilitySchedule ?? "Contact seller" }}</dd>
       </dl>
+      </div>
     </div>
 
     <div v-if="auth.isAuthenticated" class="card">

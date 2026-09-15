@@ -26,13 +26,20 @@ packages they started as.
 - Student registration + email verification (link is logged to the console — no SMTP
   provider is wired up yet) and JWT login. As a fallback to that (since there's no real inbox
   to click the link from), the admin console can also approve a pending account directly.
+- Self-service "Forgot password" flow (request a reset code, then reset with it) — same
+  console-logged-code pattern as email verification, since there's no real email delivery.
 - Single-account model: any student can call "Become a Seller" from their dashboard rather
   than registering a separate seller account.
-- Register/manage a business, request verification.
+- Register/manage a business, request verification, and resubmit for another review if
+  rejected (edit details from Account Settings, then resubmit).
 - Create/edit/deactivate/reactivate Product or Service listings, editable inline from the
-  dashboard (title, category, description, price, stock/duration/availability, status).
+  dashboard (title, category, description, price, stock/duration/availability, status, and an
+  optional image URL for products).
 - Public browse with keyword/category search, price range, product/service type, verified-
   sellers-only, and sort (newest, price asc/desc, most viewed); per-listing view counts.
+- Provider directory ("Browse businesses") — a public page listing every non-rejected
+  business, with keyword/category search and a verified-only filter, linking through to each
+  provider's profile.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
   resolves reporter/target ids into names for display, and a status-counts endpoint.
 - Business verification: admin can list pending businesses and verify/reject them.
@@ -46,10 +53,13 @@ packages they started as.
 - Provider profile page (business info, verification badge, stats, their active listings).
 - Account settings page ("My account"): edit profile, edit business details, and change
   password (with current-password verification).
-- A functional Vue UI for all of the above: browse with filters, listing detail + report,
-  provider profile, login/register, account settings, a combined buyer/seller dashboard, and
-  an admin console (report queue, business verification, student account approval) gated by
-  role.
+- Admin overview: a stats tab (students, businesses, listings, and reports, each broken down
+  by status) alongside the existing report queue, business verification, and student account
+  tabs.
+- A functional Vue UI for all of the above: browse with filters, provider directory, listing
+  detail + report, provider profile, login/register, forgot/reset password, account settings,
+  a combined buyer/seller dashboard, and an admin console (overview, report queue, business
+  verification, student account approval) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
