@@ -33,15 +33,18 @@ public class ReportService {
         return ReportDTO.from(reportRepository.save(report));
     }
 
-    public List<ReportDTO> myReports(UUID reporterId) {
-        return reportRepository.findByReporterId(reporterId).stream().map(ReportDTO::from).toList();
+    public List<ReportSummaryView> myReports(UUID reporterId) {
+        return reportRepository.findByReporterId(reporterId).stream()
+                .sorted(Comparator.comparing(Report::getCreatedAt).reversed())
+                .map(this::toSummaryView)
+                .toList();
     }
 
-    public List<AdminReportView> queue(ReportStatus status) {
+    public List<ReportSummaryView> queue(ReportStatus status) {
         List<Report> reports = status == null ? reportRepository.findAll() : reportRepository.findByStatus(status);
         return reports.stream()
                 .sorted(Comparator.comparing(Report::getCreatedAt).reversed())
-                .map(this::toAdminView)
+                .map(this::toSummaryView)
                 .toList();
     }
 
@@ -54,22 +57,22 @@ public class ReportService {
         );
     }
 
-    public AdminReportView beginReview(UUID reportId, UUID adminId) {
+    public ReportSummaryView beginReview(UUID reportId, UUID adminId) {
         Report report = findReport(reportId);
         report.beginReview(adminId);
-        return toAdminView(reportRepository.save(report));
+        return toSummaryView(reportRepository.save(report));
     }
 
-    public AdminReportView resolve(UUID reportId, UUID adminId, String note) {
+    public ReportSummaryView resolve(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.resolve(adminId, note);
-        return toAdminView(reportRepository.save(report));
+        return toSummaryView(reportRepository.save(report));
     }
 
-    public AdminReportView dismiss(UUID reportId, UUID adminId, String note) {
+    public ReportSummaryView dismiss(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.dismiss(adminId, note);
-        return toAdminView(reportRepository.save(report));
+        return toSummaryView(reportRepository.save(report));
     }
 
     private Report findReport(UUID id) {
@@ -77,7 +80,7 @@ public class ReportService {
                 .orElseThrow(() -> new ResourceNotFoundException("Report not found"));
     }
 
-    private AdminReportView toAdminView(Report report) {
+    private ReportSummaryView toSummaryView(Report report) {
         ReporterSummary reporter = userRepository.findById(report.getReporterId())
                 .map(u -> new ReporterSummary(u.getId(), u.getStudentNumber(), u.getFullName()))
                 .orElse(new ReporterSummary(report.getReporterId(), "unknown", "Deleted account"));
@@ -87,7 +90,7 @@ public class ReportService {
             case USER -> resolveUserTarget(report.getTargetId());
         };
 
-        return AdminReportView.of(report, reporter, target);
+        return ReportSummaryView.of(report, reporter, target);
     }
 
     private TargetSummary resolveListingTarget(UUID listingId) {

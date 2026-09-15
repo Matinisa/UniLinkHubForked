@@ -73,7 +73,7 @@ export interface TargetSummary {
   secondaryLabel: string | null;
 }
 
-export interface AdminReportView {
+export interface ReportSummaryView {
   id: string;
   reason: ReportReason;
   details: string | null;

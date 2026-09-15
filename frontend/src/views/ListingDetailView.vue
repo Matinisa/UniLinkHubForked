@@ -3,10 +3,13 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
+import { useSavedListingsStore } from "@/stores/savedListings";
+import { recordView } from "@/lib/recentlyViewed";
 import type { BusinessDTO, ListingDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
+const saved = useSavedListingsStore();
 
 const listing = ref<ListingDTO | null>(null);
 const business = ref<BusinessDTO | null>(null);
@@ -24,6 +27,7 @@ async function load() {
   try {
     const { data } = await api.get<ListingDTO>(`/listings/${route.params.id}`);
     listing.value = data;
+    recordView(data);
     const { data: businessData } = await api.get<BusinessDTO>(`/businesses/${data.businessId}`);
     business.value = businessData;
   } catch (err) {
@@ -57,7 +61,28 @@ onMounted(load);
     <div class="card space-y-3">
       <div class="flex items-start justify-between gap-2">
         <h1 class="font-display text-2xl font-bold text-uni-navy">{{ listing.name }}</h1>
-        <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
+        <div class="flex shrink-0 items-center gap-2">
+          <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
+          <button
+            v-if="auth.isAuthenticated"
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-light-grey"
+            :aria-label="saved.isSaved(listing.id) ? 'Unsave listing' : 'Save listing'"
+            @click="saved.toggleSave(listing)"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              :fill="saved.isSaved(listing.id) ? '#DC2626' : 'none'"
+              stroke="#DC2626"
+              stroke-width="2"
+            >
+              <path
+                d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
       <p class="text-sm text-medium-grey">{{ listing.category }}</p>
       <RouterLink

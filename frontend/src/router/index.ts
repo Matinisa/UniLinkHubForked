@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useSavedListingsStore } from "@/stores/savedListings";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -35,6 +36,12 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAdmin && !auth.isAdmin) {
     return { name: "browse" };
   }
+
+  const saved = useSavedListingsStore();
+  if (auth.isAuthenticated && !saved.initialized) {
+    saved.fetchSaved().catch(() => {});
+  }
+
   return true;
 });
 

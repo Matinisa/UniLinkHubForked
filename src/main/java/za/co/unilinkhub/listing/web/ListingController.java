@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.listing.application.ListingDTO;
 import za.co.unilinkhub.listing.application.ListingService;
+import za.co.unilinkhub.saved.application.SavedListingService;
 import za.co.unilinkhub.security.CurrentUser;
 
 import java.math.BigDecimal;
@@ -29,6 +31,7 @@ import java.util.UUID;
 public class ListingController {
 
     private final ListingService listingService;
+    private final SavedListingService savedListingService;
 
     public record CreateProductRequest(
             @NotNull UUID businessId, @NotBlank String name, @NotBlank String description,
@@ -85,5 +88,22 @@ public class ListingController {
     @GetMapping("/business/{businessId}")
     public List<ListingDTO> byBusiness(@PathVariable UUID businessId) {
         return listingService.byBusiness(businessId);
+    }
+
+    @PostMapping("/{id}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void save(@CurrentUser UUID userId, @PathVariable UUID id) {
+        savedListingService.save(userId, id);
+    }
+
+    @DeleteMapping("/{id}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsave(@CurrentUser UUID userId, @PathVariable UUID id) {
+        savedListingService.unsave(userId, id);
+    }
+
+    @GetMapping("/saved/mine")
+    public List<ListingDTO> savedMine(@CurrentUser UUID userId) {
+        return savedListingService.mine(userId);
     }
 }

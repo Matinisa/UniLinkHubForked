@@ -33,17 +33,20 @@ packages they started as.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
   resolves reporter/target ids into names for display, and a status-counts endpoint.
 - Business verification: admin can list pending businesses and verify/reject them.
-- A functional Vue UI for all of the above: browse, listing detail + report, login/register,
-  a combined buyer/seller dashboard, and an admin console (report queue, business
-  verification) gated by role.
+- Saved/favourited listings (heart toggle on any listing card or the listing detail page),
+  recently viewed listings (tracked client-side, per browser), and a "your reports" status
+  list - the Buyer Dashboard requirements from Section 11.1, all on the same single dashboard
+  alongside the seller section.
+- Provider profile page (business info, verification badge, stats, their active listings).
+- A functional Vue UI for all of the above: browse, listing detail + report, provider
+  profile, login/register, a combined buyer/seller dashboard, and an admin console (report
+  queue, business verification) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
 
 ## Not built yet (next steps)
 
-- Provider profile page (currently only listing detail exists) and buyer "saved listings" /
-  "recently viewed" (the backend has no favourites endpoint yet).
 - Any way to promote a user to ADMIN other than a direct SQL `UPDATE` (see below) — there's no
   self-service or seed-admin flow yet.
 - Real email delivery for verification links.

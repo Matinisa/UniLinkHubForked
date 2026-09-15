@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import AdminNav from "@/components/AdminNav.vue";
-import type { AdminBusinessView, AdminReportView, ReportStatus, ReportStatusCounts } from "@/lib/types";
+import type { AdminBusinessView, ReportSummaryView, ReportStatus, ReportStatusCounts } from "@/lib/types";
 
 type Section = "reports" | "businesses";
 const activeSection = ref<Section>("reports");
 
 // ---- Reports ----
-const reports = ref<AdminReportView[]>([]);
+const reports = ref<ReportSummaryView[]>([]);
 const counts = ref<ReportStatusCounts>({ open: 0, underReview: 0, resolved: 0, dismissed: 0 });
 const activeFilter = ref<ReportStatus | "ALL">("ALL");
 const selectedId = ref<string | null>(null);
@@ -80,7 +80,7 @@ async function loadReports() {
   reportsLoading.value = true;
   reportsError.value = "";
   try {
-    const { data } = await api.get<AdminReportView[]>("/admin/reports", {
+    const { data } = await api.get<ReportSummaryView[]>("/admin/reports", {
       params: activeFilter.value === "ALL" ? {} : { status: activeFilter.value },
     });
     reports.value = data;

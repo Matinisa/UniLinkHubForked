@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
+import { useSavedListingsStore } from "@/stores/savedListings";
+import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
-import type { BusinessDTO, ListingDTO } from "@/lib/types";
+import ListingCard from "@/components/ListingCard.vue";
+import type { BusinessDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
+const saved = useSavedListingsStore();
 
 const businesses = ref<BusinessDTO[]>([]);
 const listingsByBusiness = ref<Record<string, ListingDTO[]>>({});
@@ -28,6 +32,60 @@ const newListing = ref({
 });
 const creatingListing = ref(false);
 
+// ---- Buyer: recently viewed ----
+const recentlyViewed = ref<ListingDTO[]>([]);
+
+// ---- Buyer: my reports ----
+const myReports = ref<ReportSummaryView[]>([]);
+const reportsLoading = ref(false);
+const reportsError = ref("");
+
+const REASON_LABELS: Record<string, string> = {
+  MISREPRESENTATION: "Misrepresentation",
+  NON_DELIVERY: "Non-delivery",
+  INAPPROPRIATE_CONDUCT: "Inappropriate conduct",
+  SPAM: "Spam",
+  OTHER: "Other",
+};
+
+const STATUS_STYLES: Record<ReportStatus, string> = {
+  OPEN: "bg-warning/15 text-warning",
+  UNDER_REVIEW: "bg-info/15 text-info",
+  RESOLVED: "bg-success/15 text-success",
+  DISMISSED: "bg-medium-grey/15 text-medium-grey",
+};
+
+const STATUS_LABELS: Record<ReportStatus, string> = {
+  OPEN: "Open",
+  UNDER_REVIEW: "Under review",
+  RESOLVED: "Resolved",
+  DISMISSED: "Dismissed",
+};
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+async function loadReports() {
+  reportsLoading.value = true;
+  reportsError.value = "";
+  try {
+    const { data } = await api.get<ReportSummaryView[]>("/reports/mine");
+    myReports.value = data;
+  } catch (err) {
+    reportsError.value = extractErrorMessage(err);
+  } finally {
+    reportsLoading.value = false;
+  }
+}
+
+// ---- Seller ----
 async function loadBusinesses() {
   if (!auth.isSeller) return;
   try {
@@ -113,7 +171,10 @@ async function deactivateListing(id: string) {
   }
 }
 
-onMounted(loadBusinesses);
+onMounted(async () => {
+  recentlyViewed.value = getRecentlyViewed();
+  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved()]);
+});
 </script>
 
 <template>
@@ -126,6 +187,53 @@ onMounted(loadBusinesses);
     </div>
 
     <p v-if="error" class="text-sm text-danger">{{ error }}</p>
+
+    <!-- Saved listings -->
+    <div>
+      <div class="mb-3 flex items-center gap-2">
+        <h2 class="font-display text-lg font-semibold text-uni-navy">Saved listings</h2>
+        <span v-if="saved.listings.length > 0" class="text-xs text-medium-grey">{{ saved.listings.length }} saved</span>
+      </div>
+      <div v-if="saved.listings.length === 0" class="card text-sm text-medium-grey">
+        Tap the heart on any listing to save it here for later.
+      </div>
+      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ListingCard v-for="listing in saved.listings" :key="listing.id" :listing="listing" />
+      </div>
+    </div>
+
+    <!-- Recently viewed -->
+    <div v-if="recentlyViewed.length > 0">
+      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Recently viewed</h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ListingCard v-for="listing in recentlyViewed" :key="listing.id" :listing="listing" />
+      </div>
+    </div>
+
+    <!-- My reports -->
+    <div>
+      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Your reports</h2>
+      <p v-if="reportsError" class="text-sm text-danger">{{ reportsError }}</p>
+      <p v-else-if="reportsLoading" class="text-sm text-medium-grey">Loading...</p>
+      <div v-else-if="myReports.length === 0" class="card text-sm text-medium-grey">
+        Reports you file on listings or providers will show up here with their status.
+      </div>
+      <div v-else class="space-y-2">
+        <div
+          v-for="r in myReports"
+          :key="r.id"
+          class="flex items-center justify-between rounded-card border border-light-grey bg-white px-4 py-3"
+        >
+          <div>
+            <p class="text-sm font-semibold text-uni-navy">{{ REASON_LABELS[r.reason] ?? r.reason }}</p>
+            <p class="text-xs text-medium-grey">{{ r.target.label }} &middot; Filed {{ relativeTime(r.createdAt) }}</p>
+          </div>
+          <span class="badge" :class="STATUS_STYLES[r.status]">{{ STATUS_LABELS[r.status] }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-px bg-light-grey"></div>
 
     <div v-if="!auth.isSeller" class="card space-y-3">
       <h2 class="font-display text-lg font-semibold text-uni-navy">Have something to offer?</h2>

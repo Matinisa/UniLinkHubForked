@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import za.co.unilinkhub.report.application.AdminReportView;
 import za.co.unilinkhub.report.application.ReportDTO;
 import za.co.unilinkhub.report.application.ReportService;
 import za.co.unilinkhub.report.application.ReportStatusCounts;
+import za.co.unilinkhub.report.application.ReportSummaryView;
 import za.co.unilinkhub.report.domain.ReportReason;
 import za.co.unilinkhub.report.domain.ReportStatus;
 import za.co.unilinkhub.report.domain.ReportTargetType;
@@ -50,13 +50,13 @@ public class ReportController {
     }
 
     @GetMapping("/reports/mine")
-    public List<ReportDTO> mine(@CurrentUser UUID userId) {
+    public List<ReportSummaryView> mine(@CurrentUser UUID userId) {
         return reportService.myReports(userId);
     }
 
     @GetMapping("/admin/reports")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<AdminReportView> queue(@RequestParam(required = false) ReportStatus status) {
+    public List<ReportSummaryView> queue(@RequestParam(required = false) ReportStatus status) {
         return reportService.queue(status);
     }
 
@@ -68,19 +68,19 @@ public class ReportController {
 
     @PostMapping("/admin/reports/{id}/begin-review")
     @PreAuthorize("hasRole('ADMIN')")
-    public AdminReportView beginReview(@CurrentUser UUID adminId, @PathVariable UUID id) {
+    public ReportSummaryView beginReview(@CurrentUser UUID adminId, @PathVariable UUID id) {
         return reportService.beginReview(id, adminId);
     }
 
     @PostMapping("/admin/reports/{id}/resolve")
     @PreAuthorize("hasRole('ADMIN')")
-    public AdminReportView resolve(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
+    public ReportSummaryView resolve(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
         return reportService.resolve(id, adminId, request.note());
     }
 
     @PostMapping("/admin/reports/{id}/dismiss")
     @PreAuthorize("hasRole('ADMIN')")
-    public AdminReportView dismiss(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
+    public ReportSummaryView dismiss(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody ReviewRequest request) {
         return reportService.dismiss(id, adminId, request.note());
     }
 }
