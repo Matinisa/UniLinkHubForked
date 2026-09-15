@@ -30,9 +30,12 @@ packages they started as.
 - Register/manage a business, request verification.
 - Create/edit/deactivate Product or Service listings; public browse + keyword/category search;
   per-listing view counts.
-- Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss).
-- A minimal but functional Vue UI for all of the above: browse, listing detail + report,
-  login/register, and a combined buyer/seller dashboard.
+- Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
+  resolves reporter/target ids into names for display, and a status-counts endpoint.
+- Business verification: admin can list pending businesses and verify/reject them.
+- A functional Vue UI for all of the above: browse, listing detail + report, login/register,
+  a combined buyer/seller dashboard, and an admin console (report queue, business
+  verification) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
@@ -41,7 +44,6 @@ test script below) — it isn't just "compiles", it actually runs.
 
 - Provider profile page (currently only listing detail exists) and buyer "saved listings" /
   "recently viewed" (the backend has no favourites endpoint yet).
-- Admin UI screens (the API exists: `/api/admin/reports`, business verification review).
 - Any way to promote a user to ADMIN other than a direct SQL `UPDATE` (see below) — there's no
   self-service or seed-admin flow yet.
 - Real email delivery for verification links.
