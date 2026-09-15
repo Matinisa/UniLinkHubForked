@@ -32,6 +32,16 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/recently-viewed",
+      name: "recently-viewed",
+      component: () => import("@/views/RecentlyViewedView.vue"),
+    },
+    {
+      path: "/compare",
+      name: "compare-listings",
+      component: () => import("@/views/CompareListingsView.vue"),
+    },
+    {
       path: "/admin",
       name: "admin-dashboard",
       component: () => import("@/views/admin/AdminDashboardView.vue"),

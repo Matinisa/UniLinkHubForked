@@ -5,7 +5,7 @@ import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import ListingCard from "@/components/ListingCard.vue";
-import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
+import type { BusinessContactDTO, ListingDTO, ProviderProfileDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -19,6 +19,30 @@ const reportOpen = ref(false);
 const reportReason = ref("MISREPRESENTATION");
 const reportDetails = ref("");
 const reportStatus = ref("");
+
+const contactOpen = ref(false);
+const contact = ref<BusinessContactDTO | null>(null);
+const contactError = ref("");
+
+async function openContact() {
+  contactOpen.value = true;
+  contactError.value = "";
+  if (contact.value) return;
+  try {
+    const { data } = await api.get<BusinessContactDTO>(`/businesses/${route.params.businessId}/contact`);
+    contact.value = data;
+  } catch (err) {
+    contactError.value = extractErrorMessage(err);
+  }
+}
+
+async function copyContact(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Clipboard access can be blocked - the value is still visible to copy manually.
+  }
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-ZA", { month: "short", year: "numeric" });
@@ -110,6 +134,13 @@ onMounted(load);
             {{ followed.isFollowing(profile.businessId) ? "Following" : "Follow" }}
           </button>
           <button
+            v-if="auth.isAuthenticated"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-control border border-uni-navy bg-white px-4 py-2 text-sm font-semibold text-uni-navy hover:bg-soft-grey"
+            @click="openContact"
+          >
+            Contact
+          </button>
+          <button
             v-if="auth.isAuthenticated && !reportOpen"
             class="inline-flex items-center justify-center whitespace-nowrap rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger"
             @click="reportOpen = true"
@@ -190,6 +221,42 @@ onMounted(load);
           </div>
           <p class="text-xs text-medium-grey">{{ b.activeListingCount }} active listing{{ b.activeListingCount === 1 ? "" : "s" }}</p>
         </RouterLink>
+      </div>
+    </div>
+
+    <div v-if="contactOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="contactOpen = false">
+      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="font-display text-base font-bold text-uni-navy">Contact {{ profile.businessName }}</h2>
+          <button class="text-medium-grey" @click="contactOpen = false">&times;</button>
+        </div>
+        <p class="mb-4 text-xs text-medium-grey">Shown because you're signed in - please keep it campus-appropriate.</p>
+
+        <p v-if="contactError" class="text-sm text-danger">{{ contactError }}</p>
+        <template v-else-if="contact">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between rounded-control border border-light-grey bg-soft-grey px-3 py-2.5">
+              <div class="flex items-center gap-2">
+                <span>✉️</span>
+                <span class="text-sm text-charcoal">{{ contact.email }}</span>
+              </div>
+              <button class="text-xs font-semibold text-campus-teal" @click="copyContact(contact.email)">Copy</button>
+            </div>
+            <div v-if="contact.phoneNumber" class="flex items-center justify-between rounded-control border border-light-grey bg-soft-grey px-3 py-2.5">
+              <div class="flex items-center gap-2">
+                <span>📞</span>
+                <span class="text-sm text-charcoal">{{ contact.phoneNumber }}</span>
+              </div>
+              <button class="text-xs font-semibold text-campus-teal" @click="copyContact(contact.phoneNumber)">Copy</button>
+            </div>
+          </div>
+          <p class="mt-4 rounded-control bg-sky-blue/10 px-3 py-2 text-xs text-uni-navy">
+            💬 In-app messaging isn't available yet - for now, reach out directly.
+          </p>
+        </template>
+        <p v-else class="text-sm text-medium-grey">Loading...</p>
+
+        <button class="btn-primary mt-4 w-full text-sm" @click="contactOpen = false">Close</button>
       </div>
     </div>
   </section>

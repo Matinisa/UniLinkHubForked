@@ -2,6 +2,7 @@ package za.co.unilinkhub.user.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.common.exception.BadRequestException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.user.domain.AccountStatus;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     public UserDTO getById(UUID id) {
         return UserDTO.from(findUser(id));
@@ -70,16 +72,29 @@ public class UserService {
                 .toList();
     }
 
-    public UserDTO suspendAccount(UUID userId) {
+    public UserDTO suspendAccount(UUID userId, UUID adminId, String reason) {
         User user = findUser(userId);
-        user.suspend();
-        return UserDTO.from(userRepository.save(user));
+        user.suspend(reason);
+        UserDTO dto = UserDTO.from(userRepository.save(user));
+        auditLogService.record(findUser(adminId).getFullName(), "ACCOUNT", "Suspended account \"" + user.getFullName() + "\""
+                + (reason != null && !reason.isBlank() ? " — reason: " + reason : ""));
+        return dto;
     }
 
-    public UserDTO reactivateAccount(UUID userId) {
+    public UserDTO reactivateAccount(UUID userId, UUID adminId) {
         User user = findUser(userId);
         user.reactivate();
-        return UserDTO.from(userRepository.save(user));
+        UserDTO dto = UserDTO.from(userRepository.save(user));
+        auditLogService.record(findUser(adminId).getFullName(), "ACCOUNT", "Reactivated account \"" + user.getFullName() + "\"");
+        return dto;
+    }
+
+    public UserDTO promoteToAdmin(UUID userId, UUID adminId) {
+        User user = findUser(userId);
+        user.promoteToAdmin();
+        UserDTO dto = UserDTO.from(userRepository.save(user));
+        auditLogService.record(findUser(adminId).getFullName(), "ACCOUNT", "Promoted \"" + user.getFullName() + "\" to Admin");
+        return dto;
     }
 
     private User findUser(UUID id) {

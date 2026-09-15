@@ -2,6 +2,7 @@ package za.co.unilinkhub.business.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
@@ -28,6 +29,7 @@ public class BusinessService {
     private final UserService userService;
     private final SavedListingService savedListingService;
     private final FollowedBusinessRepository followedBusinessRepository;
+    private final AuditLogService auditLogService;
 
     public BusinessDTO create(UUID ownerId, String businessName, String description, String category) {
         // Becoming a seller and registering a first business happen together for the MVP flow.
@@ -97,16 +99,32 @@ public class BusinessService {
                 .toList();
     }
 
-    public BusinessDTO verify(UUID businessId) {
+    public BusinessDTO verify(UUID businessId, UUID adminId) {
         Business business = findById(businessId);
         business.verify();
-        return BusinessDTO.from(businessRepository.save(business));
+        BusinessDTO dto = BusinessDTO.from(businessRepository.save(business));
+        auditLogService.record(adminName(adminId), "BUSINESS", "Verified business \"" + business.getBusinessName() + "\"");
+        return dto;
     }
 
-    public BusinessDTO reject(UUID businessId, String reason) {
+    public BusinessDTO reject(UUID businessId, String reason, UUID adminId) {
         Business business = findById(businessId);
         business.reject(reason);
-        return BusinessDTO.from(businessRepository.save(business));
+        BusinessDTO dto = BusinessDTO.from(businessRepository.save(business));
+        auditLogService.record(adminName(adminId), "BUSINESS", "Rejected business \"" + business.getBusinessName() + "\""
+                + (reason != null && !reason.isBlank() ? " — reason: " + reason : ""));
+        return dto;
+    }
+
+    public BusinessContactDTO getContact(UUID businessId) {
+        Business business = findById(businessId);
+        UserDTO owner = userService.getById(business.getOwnerId());
+        return new BusinessContactDTO(owner.email(), owner.phoneNumber());
+    }
+
+    private String adminName(UUID adminId) {
+        UserDTO admin = userService.getById(adminId);
+        return admin.firstName() + " " + admin.lastName();
     }
 
     public List<AdminBusinessView> listForAdmin(String status, String keyword) {

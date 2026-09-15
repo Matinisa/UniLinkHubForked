@@ -12,6 +12,18 @@ const loading = ref(false);
 const error = ref("");
 const statusFilter = ref<"ALL" | "ACTIVE" | "SOLD_OUT" | "INACTIVE">("ALL");
 const keyword = ref("");
+const selected = ref(new Set<string>());
+const bulkActing = ref(false);
+const openMenuId = ref<string | null>(null);
+const duplicatingId = ref<string | null>(null);
+const toast = ref("");
+let toastHandle: ReturnType<typeof setTimeout> | undefined;
+
+function showToast(message: string) {
+  toast.value = message;
+  clearTimeout(toastHandle);
+  toastHandle = setTimeout(() => (toast.value = ""), 4000);
+}
 
 const businessNameById = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
@@ -73,11 +85,88 @@ function manage() {
   router.push("/dashboard");
 }
 
+function toggleSelected(id: string) {
+  if (selected.value.has(id)) {
+    selected.value.delete(id);
+  } else {
+    selected.value.add(id);
+  }
+}
+
+function toggleSelectAll() {
+  if (selected.value.size === filteredListings.value.length) {
+    selected.value.clear();
+  } else {
+    selected.value = new Set(filteredListings.value.map((l) => l.id));
+  }
+}
+
+async function bulkAction(action: "reactivate" | "deactivate") {
+  bulkActing.value = true;
+  error.value = "";
+  try {
+    await Promise.all([...selected.value].map((id) => api.post(`/listings/${id}/${action}`)));
+    selected.value.clear();
+    await load();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    bulkActing.value = false;
+  }
+}
+
+function toggleMenu(id: string) {
+  openMenuId.value = openMenuId.value === id ? null : id;
+}
+
+async function toggleStatus(listing: ListingDTO) {
+  openMenuId.value = null;
+  try {
+    await api.post(`/listings/${listing.id}/${listing.status === "ACTIVE" ? "deactivate" : "reactivate"}`);
+    await load();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  }
+}
+
+async function duplicateListing(listing: ListingDTO) {
+  openMenuId.value = null;
+  duplicatingId.value = listing.id;
+  error.value = "";
+  try {
+    const payload = {
+      businessId: listing.businessId,
+      name: `${listing.name} (copy)`,
+      description: listing.description,
+      category: listing.category,
+      price: listing.price,
+    };
+    const { data: created } = listing.type === "PRODUCT"
+      ? await api.post<ListingDTO>("/listings/products", {
+          ...payload,
+          stockQuantity: listing.stockQuantity,
+          imageUrl: listing.imageUrl,
+        })
+      : await api.post<ListingDTO>("/listings/services", {
+          ...payload,
+          durationMinutes: listing.durationMinutes,
+          availabilitySchedule: listing.availabilitySchedule,
+        });
+    await api.post(`/listings/${created.id}/deactivate`);
+    showToast(`Duplicated as "${created.name}" — saved as inactive, ready to edit.`);
+    await load();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    duplicatingId.value = null;
+  }
+}
+
 onMounted(load);
 </script>
 
 <template>
-  <section class="mx-auto max-w-4xl space-y-5">
+  <section class="mx-auto max-w-4xl space-y-5 pb-16">
     <h1 class="font-display text-xl font-bold text-uni-navy">My listings</h1>
     <p class="text-sm text-medium-grey">
       Every listing across all your businesses, in one table instead of hunting per-business.
@@ -102,31 +191,76 @@ onMounted(load);
     <p v-else-if="loading" class="text-sm text-medium-grey">Loading...</p>
     <p v-else-if="filteredListings.length === 0" class="card text-sm text-medium-grey">No listings match this filter.</p>
 
-    <div v-else class="card overflow-x-auto p-0">
+    <div v-else class="card overflow-visible p-0">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b border-light-grey text-left text-xs uppercase tracking-wide text-medium-grey">
-            <th class="px-4 py-3">Listing</th>
-            <th class="px-4 py-3">Business</th>
-            <th class="px-4 py-3">Price</th>
-            <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3">Views</th>
+            <th class="w-10 px-4 py-3">
+              <input type="checkbox" :checked="selected.size > 0 && selected.size === filteredListings.length" @change="toggleSelectAll" />
+            </th>
+            <th class="px-2 py-3">Listing</th>
+            <th class="px-2 py-3">Business</th>
+            <th class="px-2 py-3">Price</th>
+            <th class="px-2 py-3">Status</th>
+            <th class="px-2 py-3">Views</th>
             <th class="px-4 py-3"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="l in filteredListings" :key="l.id" class="border-b border-light-grey last:border-b-0">
-            <td class="px-4 py-3 font-medium text-charcoal">{{ l.name }}</td>
-            <td class="px-4 py-3 text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</td>
-            <td class="px-4 py-3 font-medium text-campus-teal">{{ formatPrice(l.price) }}</td>
-            <td class="px-4 py-3"><span class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span></td>
-            <td class="px-4 py-3 text-medium-grey">{{ l.viewCount }}</td>
-            <td class="px-4 py-3 text-right">
-              <button class="text-xs font-medium text-campus-teal underline" @click="manage">Manage</button>
+          <tr
+            v-for="l in filteredListings"
+            :key="l.id"
+            class="relative border-b border-light-grey last:border-b-0"
+            :class="{ 'bg-campus-teal/5': selected.has(l.id) }"
+          >
+            <td class="px-4 py-3"><input type="checkbox" :checked="selected.has(l.id)" @change="toggleSelected(l.id)" /></td>
+            <td class="px-2 py-3 font-medium text-charcoal">{{ l.name }}</td>
+            <td class="px-2 py-3 text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</td>
+            <td class="px-2 py-3 font-medium text-campus-teal">{{ formatPrice(l.price) }}</td>
+            <td class="px-2 py-3"><span class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span></td>
+            <td class="px-2 py-3 text-medium-grey">{{ l.viewCount }}</td>
+            <td class="relative px-4 py-3 text-right">
+              <button class="px-1 text-medium-grey hover:text-charcoal" :disabled="duplicatingId === l.id" @click="toggleMenu(l.id)">
+                {{ duplicatingId === l.id ? "..." : "⋮" }}
+              </button>
+              <div
+                v-if="openMenuId === l.id"
+                class="absolute right-4 top-[calc(100%-4px)] z-10 w-44 rounded-card border border-light-grey bg-white py-1 text-left shadow-md"
+                @click.stop
+              >
+                <button class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey" @click="manage(); openMenuId = null">Edit</button>
+                <button class="block w-full px-3 py-1.5 text-left text-sm font-semibold text-campus-teal hover:bg-campus-teal/10" @click="duplicateListing(l)">Duplicate</button>
+                <button
+                  v-if="l.status !== 'SOLD_OUT'"
+                  class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
+                  @click="toggleStatus(l)"
+                >
+                  {{ l.status === "ACTIVE" ? "Deactivate" : "Reactivate" }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="selected.size > 0" class="fixed bottom-0 left-0 right-0 border-t border-light-grey bg-uni-navy px-4 py-3 sm:px-6">
+      <div class="mx-auto flex max-w-4xl items-center justify-between">
+        <p class="text-sm font-semibold text-white">{{ selected.size }} listing{{ selected.size === 1 ? "" : "s" }} selected</p>
+        <div class="flex items-center gap-2">
+          <button class="inline-flex items-center gap-1.5 rounded-control bg-success px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" :disabled="bulkActing" @click="bulkAction('reactivate')">
+            Activate
+          </button>
+          <button class="inline-flex items-center gap-1.5 rounded-control bg-white/10 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" :disabled="bulkActing" @click="bulkAction('deactivate')">
+            Deactivate
+          </button>
+          <button class="text-sm font-medium text-white/70" @click="selected.clear()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-control bg-charcoal px-4 py-2.5 text-sm text-white shadow-lg">
+      {{ toast }}
     </div>
   </section>
 </template>

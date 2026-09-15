@@ -75,6 +75,9 @@ public class User {
     @Column(name = "email_change_token", length = 64)
     private String emailChangeToken;
 
+    @Column(name = "suspension_reason", length = 1000)
+    private String suspensionReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -117,16 +120,22 @@ public class User {
         this.seller = true;
     }
 
-    public void suspend() {
+    public void suspend(String reason) {
         this.accountStatus = AccountStatus.SUSPENDED;
+        this.suspensionReason = reason;
     }
 
     public void reactivate() {
         this.accountStatus = AccountStatus.ACTIVE;
+        this.suspensionReason = null;
     }
 
     public void deactivate() {
         this.accountStatus = AccountStatus.DEACTIVATED;
+    }
+
+    public void promoteToAdmin() {
+        this.role = UserRole.ADMIN;
     }
 
     public void changePassword(String newPasswordHash) {

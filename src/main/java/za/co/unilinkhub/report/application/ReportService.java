@@ -2,6 +2,7 @@ package za.co.unilinkhub.report.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
@@ -27,6 +28,7 @@ public class ReportService {
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
     private final BusinessRepository businessRepository;
+    private final AuditLogService auditLogService;
 
     public ReportDTO file(UUID reporterId, ReportTargetType targetType, UUID targetId, ReportReason reason, String details) {
         Report report = Report.file(reporterId, targetType, targetId, reason, details);
@@ -80,13 +82,21 @@ public class ReportService {
     public ReportSummaryView resolve(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.resolve(adminId, note);
-        return toSummaryView(reportRepository.save(report));
+        ReportSummaryView view = toSummaryView(reportRepository.save(report));
+        auditLogService.record(adminName(adminId), "REPORT", "Resolved report against \"" + view.target().label() + "\"");
+        return view;
     }
 
     public ReportSummaryView dismiss(UUID reportId, UUID adminId, String note) {
         Report report = findReport(reportId);
         report.dismiss(adminId, note);
-        return toSummaryView(reportRepository.save(report));
+        ReportSummaryView view = toSummaryView(reportRepository.save(report));
+        auditLogService.record(adminName(adminId), "REPORT", "Dismissed report against \"" + view.target().label() + "\"");
+        return view;
+    }
+
+    private String adminName(UUID adminId) {
+        return userRepository.findById(adminId).map(User::getFullName).orElse("Unknown admin");
     }
 
     private Report findReport(UUID id) {

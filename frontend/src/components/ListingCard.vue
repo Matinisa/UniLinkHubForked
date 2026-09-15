@@ -2,11 +2,13 @@
 import type { ListingDTO } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
+import { useCompareStore } from "@/stores/compare";
 
 const props = defineProps<{ listing: ListingDTO }>();
 
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
+const compare = useCompareStore();
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
@@ -67,6 +69,20 @@ function formatPrice(price: number) {
         <span class="font-display text-lg font-semibold text-campus-teal">{{ formatPrice(listing.price) }}</span>
         <span class="text-xs text-medium-grey">{{ listing.category }}</span>
       </div>
+      <label
+        class="flex items-center gap-1.5 text-xs text-medium-grey"
+        :class="{ 'opacity-50': !compare.isComparing(listing.id) && compare.isFull }"
+        @click.stop
+      >
+        <input
+          type="checkbox"
+          class="accent-campus-teal"
+          :checked="compare.isComparing(listing.id)"
+          :disabled="!compare.isComparing(listing.id) && compare.isFull"
+          @change="compare.toggle(listing.id)"
+        />
+        Compare
+      </label>
     </div>
   </RouterLink>
 </template>

@@ -16,13 +16,14 @@ public record UserResponse(
         String role,
         String accountStatus,
         boolean seller,
+        String suspensionReason,
         LocalDateTime createdAt
 ) {
     public static UserResponse from(UserDTO dto) {
         return new UserResponse(
                 dto.id(), dto.studentNumber(), dto.firstName(), dto.lastName(),
                 dto.email(), dto.pendingEmail(), dto.phoneNumber(), dto.role(), dto.accountStatus(),
-                dto.seller(), dto.createdAt()
+                dto.seller(), dto.suspensionReason(), dto.createdAt()
         );
     }
 }

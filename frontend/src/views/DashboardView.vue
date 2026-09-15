@@ -317,9 +317,12 @@ onMounted(async () => {
 
     <!-- Recently viewed -->
     <div v-if="recentlyViewed.length > 0">
-      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Recently viewed</h2>
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="font-display text-lg font-semibold text-uni-navy">Recently viewed</h2>
+        <RouterLink to="/recently-viewed" class="text-xs font-medium text-campus-teal underline">View all &rarr;</RouterLink>
+      </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ListingCard v-for="listing in recentlyViewed" :key="listing.id" :listing="listing" />
+        <ListingCard v-for="listing in recentlyViewed.slice(0, 3)" :key="listing.id" :listing="listing" />
       </div>
     </div>
 
@@ -385,6 +388,39 @@ onMounted(async () => {
               </span>
             </div>
             <p class="text-sm text-medium-grey">{{ business.category }}</p>
+
+            <div
+              v-if="business.verificationStatus === 'PENDING'"
+              class="mt-3 space-y-2 rounded-control border border-academic-gold/50 bg-academic-gold/5 p-3"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold text-uni-navy">Get {{ business.businessName }} verified</span>
+                <span class="text-xs font-semibold text-medium-grey">
+                  {{ (business.description ? 1 : 0) + ((listingsByBusiness[business.id] ?? []).length > 0 ? 1 : 0) + (business.imageUrl ? 1 : 0) }} / 3
+                </span>
+              </div>
+              <ul class="space-y-1 text-sm">
+                <li class="flex items-center gap-2 text-charcoal">
+                  <span class="flex h-5 w-5 items-center justify-center rounded-full bg-success text-xs text-white">✓</span>
+                  Business profile complete
+                </li>
+                <li class="flex items-center gap-2" :class="(listingsByBusiness[business.id] ?? []).length > 0 ? 'text-charcoal' : 'text-medium-grey'">
+                  <span
+                    class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
+                    :class="(listingsByBusiness[business.id] ?? []).length > 0 ? 'bg-success text-white' : 'border-2 border-light-grey'"
+                  >{{ (listingsByBusiness[business.id] ?? []).length > 0 ? "✓" : "" }}</span>
+                  At least one listing added
+                </li>
+                <li class="flex items-center gap-2" :class="business.imageUrl ? 'text-charcoal' : 'text-medium-grey'">
+                  <span
+                    class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
+                    :class="business.imageUrl ? 'bg-success text-white' : 'border-2 border-light-grey'"
+                  >{{ business.imageUrl ? "✓" : "" }}</span>
+                  Add a business logo <span class="text-xs">(optional but recommended)</span>
+                </li>
+              </ul>
+              <p class="text-xs text-medium-grey">An admin reviews new businesses within a few days - you can keep editing while you wait.</p>
+            </div>
 
             <div v-if="statsByBusiness[business.id]" class="mt-3 grid grid-cols-4 gap-2 rounded-control bg-soft-grey p-3 text-center">
               <div>

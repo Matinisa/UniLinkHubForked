@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.business.application.AdminBusinessView;
+import za.co.unilinkhub.business.application.BusinessContactDTO;
 import za.co.unilinkhub.business.application.BusinessDTO;
 import za.co.unilinkhub.business.application.BusinessService;
 import za.co.unilinkhub.business.application.BusinessStatsDTO;
@@ -95,6 +96,11 @@ public class BusinessController {
         return businessService.listSimilar(id);
     }
 
+    @GetMapping("/api/businesses/{id}/contact")
+    public BusinessContactDTO contact(@CurrentUser UUID userId, @PathVariable UUID id) {
+        return businessService.getContact(id);
+    }
+
     @PostMapping("/api/businesses/{id}/follow")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void follow(@CurrentUser UUID userId, @PathVariable UUID id) {
@@ -127,13 +133,13 @@ public class BusinessController {
 
     @PostMapping("/api/admin/businesses/{id}/verify")
     @PreAuthorize("hasRole('ADMIN')")
-    public BusinessDTO verify(@PathVariable UUID id) {
-        return businessService.verify(id);
+    public BusinessDTO verify(@CurrentUser UUID adminId, @PathVariable UUID id) {
+        return businessService.verify(id, adminId);
     }
 
     @PostMapping("/api/admin/businesses/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    public BusinessDTO reject(@PathVariable UUID id, @RequestBody(required = false) RejectRequest request) {
-        return businessService.reject(id, request == null ? null : request.reason());
+    public BusinessDTO reject(@CurrentUser UUID adminId, @PathVariable UUID id, @RequestBody(required = false) RejectRequest request) {
+        return businessService.reject(id, request == null ? null : request.reason(), adminId);
     }
 }

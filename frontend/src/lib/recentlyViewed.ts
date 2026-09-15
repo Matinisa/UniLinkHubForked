@@ -21,3 +21,11 @@ export function getRecentlyViewed(): ListingDTO[] {
     return [];
   }
 }
+
+export function clearRecentlyViewed() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // localStorage unavailable - nothing to clear.
+  }
+}

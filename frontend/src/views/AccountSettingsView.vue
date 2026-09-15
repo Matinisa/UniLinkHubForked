@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
@@ -7,6 +8,7 @@ import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { useCategories } from "@/lib/categories";
 import type { BusinessDTO, ListingDTO, ReportSummaryView } from "@/lib/types";
 
+const router = useRouter();
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
 const followed = useFollowedProvidersStore();
@@ -177,6 +179,26 @@ async function loadActivity() {
     };
   } catch {
     // My activity is a nice-to-have summary; ignore failures here.
+  }
+}
+
+// ---- Deactivate account ----
+const deactivateConfirmOpen = ref(false);
+const deactivatePassword = ref("");
+const deactivating = ref(false);
+const deactivateError = ref("");
+
+async function confirmDeactivate() {
+  deactivating.value = true;
+  deactivateError.value = "";
+  try {
+    await api.post("/users/me/deactivate", { currentPassword: deactivatePassword.value });
+    auth.logout();
+    router.push({ name: "login" });
+  } catch (err) {
+    deactivateError.value = extractErrorMessage(err);
+  } finally {
+    deactivating.value = false;
   }
 }
 
@@ -379,6 +401,44 @@ onMounted(async () => {
         <button class="btn-primary text-sm" :disabled="savingPassword" @click="savePassword">
           {{ savingPassword ? "Updating..." : "Update password" }}
         </button>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="card space-y-2 !border-danger/40">
+      <h2 class="font-display text-base font-semibold text-danger">Danger zone</h2>
+      <p class="text-sm text-charcoal">
+        Deactivating hides your businesses and listings from buyers immediately. Nothing is deleted - log back
+        in any time to reactivate.
+      </p>
+      <button
+        class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger"
+        @click="deactivateConfirmOpen = true; deactivatePassword = ''; deactivateError = ''"
+      >
+        Deactivate my account
+      </button>
+    </div>
+
+    <div v-if="deactivateConfirmOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="deactivateConfirmOpen = false">
+      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+        <h2 class="font-display text-base font-bold text-danger">Deactivate your account?</h2>
+        <p class="mt-2 text-sm text-charcoal">
+          Your businesses and listings will be hidden from buyers immediately. You can reactivate any time by
+          logging back in - nothing is deleted.
+        </p>
+        <label class="mt-4 block text-xs font-semibold text-medium-grey">Confirm your password</label>
+        <input v-model="deactivatePassword" type="password" class="input-field mt-1" placeholder="Current password" />
+        <p v-if="deactivateError" class="mt-2 text-sm text-danger">{{ deactivateError }}</p>
+        <div class="mt-4 flex gap-2">
+          <button
+            class="inline-flex flex-1 items-center justify-center rounded-control bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            :disabled="deactivating || !deactivatePassword"
+            @click="confirmDeactivate"
+          >
+            {{ deactivating ? "Deactivating..." : "Deactivate account" }}
+          </button>
+          <button class="btn-secondary flex-1 text-sm" @click="deactivateConfirmOpen = false">Cancel</button>
+        </div>
       </div>
     </div>
   </section>

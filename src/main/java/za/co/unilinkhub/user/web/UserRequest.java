@@ -50,4 +50,9 @@ public class UserRequest {
             @NotBlank String currentPassword
     ) {
     }
+
+    public record DeactivateAccount(
+            @NotBlank String currentPassword
+    ) {
+    }
 }

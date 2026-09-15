@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.security.CurrentUser;
 import za.co.unilinkhub.user.application.ChangePasswordUseCase;
+import za.co.unilinkhub.user.application.DeactivateAccountUseCase;
 import za.co.unilinkhub.user.application.RequestEmailChangeUseCase;
 import za.co.unilinkhub.user.application.UpdateProfileUseCase;
 import za.co.unilinkhub.user.application.UserDTO;
@@ -28,6 +29,10 @@ public class UserController {
     private final UpdateProfileUseCase updateProfileUseCase;
     private final ChangePasswordUseCase changePasswordUseCase;
     private final RequestEmailChangeUseCase requestEmailChangeUseCase;
+    private final DeactivateAccountUseCase deactivateAccountUseCase;
+
+    public record SuspendRequest(String reason) {
+    }
 
     @GetMapping("/api/users/me")
     public UserResponse me(@CurrentUser UUID userId) {
@@ -53,6 +58,11 @@ public class UserController {
     @PostMapping("/api/users/me/become-seller")
     public UserResponse becomeSeller(@CurrentUser UUID userId) {
         return UserResponse.from(userService.becomeSeller(userId));
+    }
+
+    @PostMapping("/api/users/me/deactivate")
+    public void deactivateAccount(@CurrentUser UUID userId, @Valid @RequestBody UserRequest.DeactivateAccount request) {
+        deactivateAccountUseCase.execute(userId, request.currentPassword());
     }
 
     @GetMapping("/api/users/{id}")
@@ -81,13 +91,20 @@ public class UserController {
 
     @PostMapping("/api/admin/users/{id}/suspend")
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse suspendAccount(@PathVariable UUID id) {
-        return UserResponse.from(userService.suspendAccount(id));
+    public UserResponse suspendAccount(@CurrentUser UUID adminId, @PathVariable UUID id,
+                                        @RequestBody(required = false) SuspendRequest request) {
+        return UserResponse.from(userService.suspendAccount(id, adminId, request == null ? null : request.reason()));
     }
 
     @PostMapping("/api/admin/users/{id}/reactivate")
     @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse reactivateAccount(@PathVariable UUID id) {
-        return UserResponse.from(userService.reactivateAccount(id));
+    public UserResponse reactivateAccount(@CurrentUser UUID adminId, @PathVariable UUID id) {
+        return UserResponse.from(userService.reactivateAccount(id, adminId));
+    }
+
+    @PostMapping("/api/admin/users/{id}/promote")
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserResponse promoteToAdmin(@CurrentUser UUID adminId, @PathVariable UUID id) {
+        return UserResponse.from(userService.promoteToAdmin(id, adminId));
     }
 }

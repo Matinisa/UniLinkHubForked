@@ -9,6 +9,7 @@ export interface UserResponse {
   role: "STUDENT" | "ADMIN";
   accountStatus: "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   seller: boolean;
+  suspensionReason: string | null;
   createdAt: string;
 }
 
@@ -144,4 +145,24 @@ export interface AdminUserDetailDTO {
   businesses: BusinessDTO[];
   reportsFiled: ReportSummaryView[];
   reportsReceived: ReportSummaryView[];
+}
+
+export interface BusinessContactDTO {
+  email: string;
+  phoneNumber: string | null;
+}
+
+export interface AnnouncementDTO {
+  id: string;
+  message: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AuditLogEntryDTO {
+  id: string;
+  category: "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT";
+  description: string;
+  adminName: string;
+  createdAt: string;
 }

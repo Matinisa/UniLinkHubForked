@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
-import type { ListingDTO } from "@/lib/types";
+import { useAuthStore } from "@/stores/auth";
+import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
 import ListingCard from "@/components/ListingCard.vue";
+
+const router = useRouter();
+const auth = useAuthStore();
 
 const listings = ref<ListingDTO[]>([]);
 const categories = useCategories();
 const categoryCounts = ref<Record<string, number>>({});
 const trending = ref<ListingDTO[]>([]);
+const featuredBusinesses = ref<ProviderProfileDTO[]>([]);
 const keyword = ref("");
 const category = ref("");
 const minPrice = ref("");
@@ -19,6 +25,7 @@ const sort = ref("newest");
 const mobileFiltersOpen = ref(false);
 const loading = ref(false);
 const error = ref("");
+const suggestionsOpen = ref(false);
 
 let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 
@@ -42,8 +49,54 @@ async function loadTrending() {
   }
 }
 
+async function loadFeaturedBusinesses() {
+  try {
+    const { data } = await api.get<ProviderProfileDTO[]>("/businesses", { params: { verifiedOnly: true } });
+    featuredBusinesses.value = data.slice(0, 3);
+  } catch {
+    // Featured businesses are a nice-to-have; ignore failures here.
+  }
+}
+
 function browseCategory(c: string) {
   category.value = c;
+}
+
+// ---- Search autocomplete ----
+const matchedCategories = computed(() => {
+  const needle = keyword.value.trim().toLowerCase();
+  if (!needle) return [];
+  return categories.value.filter((c) => c.toLowerCase().includes(needle)).slice(0, 3);
+});
+
+const matchedListings = computed(() => {
+  const needle = keyword.value.trim().toLowerCase();
+  if (!needle) return [];
+  return listings.value.filter((l) => l.name.toLowerCase().includes(needle)).slice(0, 5);
+});
+
+function highlightMatch(text: string): string {
+  const needle = keyword.value.trim();
+  if (!needle) return text;
+  const index = text.toLowerCase().indexOf(needle.toLowerCase());
+  if (index === -1) return text;
+  return (
+    text.slice(0, index) +
+    "<mark class='bg-academic-gold/30'>" +
+    text.slice(index, index + needle.length) +
+    "</mark>" +
+    text.slice(index + needle.length)
+  );
+}
+
+function goToListing(id: string) {
+  suggestionsOpen.value = false;
+  router.push(`/listings/${id}`);
+}
+
+function chooseSuggestedCategory(c: string) {
+  category.value = c;
+  suggestionsOpen.value = false;
 }
 
 async function search() {
@@ -90,13 +143,72 @@ watch([keyword, category, minPrice, maxPrice, kind, verifiedOnly, sort], () => {
 onMounted(() => {
   loadCategoryCounts();
   loadTrending();
+  loadFeaturedBusinesses();
   search();
 });
 </script>
 
 <template>
   <section class="space-y-6">
-    <div class="rounded-card bg-uni-navy px-6 py-10 text-white">
+    <!-- Landing hero for logged-out visitors -->
+    <template v-if="!auth.isAuthenticated">
+      <div class="rounded-card bg-uni-navy px-6 py-12 text-center text-white sm:py-16">
+        <span class="badge bg-white/15 text-white">For CPUT res students</span>
+        <h1 class="mx-auto mt-4 max-w-2xl font-display text-3xl font-bold leading-tight sm:text-4xl">
+          Connect. Buy. Sell &amp; Succeed.
+        </h1>
+        <p class="mx-auto mt-3 max-w-xl text-sm text-white/80">
+          The marketplace built for student entrepreneurs on campus - print jobs, tutoring, food, hair &amp;
+          beauty and more, all from students you actually share a res with.
+        </p>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <RouterLink to="/register" class="btn-primary px-6 py-2.5 text-sm">Create a free account</RouterLink>
+          <a href="#browse" class="inline-flex items-center justify-center rounded-control border border-white/40 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white">
+            Browse the marketplace
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="card space-y-1 text-center">
+          <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-sky-blue/20 font-display font-bold text-uni-navy">1</div>
+          <p class="font-display text-sm font-semibold text-uni-navy">Sign up with your student email</p>
+        </div>
+        <div class="card space-y-1 text-center">
+          <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-sky-blue/20 font-display font-bold text-uni-navy">2</div>
+          <p class="font-display text-sm font-semibold text-uni-navy">Browse or list your hustle</p>
+        </div>
+        <div class="card space-y-1 text-center">
+          <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-sky-blue/20 font-display font-bold text-uni-navy">3</div>
+          <p class="font-display text-sm font-semibold text-uni-navy">Connect and succeed</p>
+        </div>
+      </div>
+
+      <div v-if="featuredBusinesses.length > 0">
+        <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Featured businesses</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <RouterLink
+            v-for="b in featuredBusinesses"
+            :key="b.businessId"
+            :to="`/providers/${b.businessId}`"
+            class="card space-y-2 transition hover:shadow-md"
+          >
+            <div class="flex items-center gap-2.5">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-blue/20 font-display text-sm font-bold text-uni-navy">
+                {{ b.businessName.charAt(0) }}
+              </div>
+              <div>
+                <h3 class="font-display text-sm font-semibold text-uni-navy">{{ b.businessName }}</h3>
+                <span class="badge bg-success/15 text-success">Verified</span>
+              </div>
+            </div>
+            <p class="text-xs text-medium-grey">{{ b.category }} &middot; {{ b.activeListingCount }} active listings</p>
+          </RouterLink>
+        </div>
+      </div>
+    </template>
+
+    <div v-else class="rounded-card bg-uni-navy px-6 py-10 text-white">
       <h1 class="font-display text-2xl font-bold sm:text-3xl">Discover student businesses on campus</h1>
       <p class="mt-2 max-w-2xl text-sm text-white/80">
         One trusted, searchable place for everything your fellow students are offering - no more
@@ -105,7 +217,7 @@ onMounted(() => {
     </div>
 
     <!-- Browse by category -->
-    <div v-if="categories.length > 0">
+    <div id="browse" v-if="categories.length > 0">
       <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Browse by category</h2>
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         <button
@@ -132,12 +244,50 @@ onMounted(() => {
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row">
-      <input
-        v-model="keyword"
-        type="search"
-        placeholder="Search listings..."
-        class="input-field sm:max-w-sm"
-      />
+      <div class="relative sm:max-w-sm sm:flex-1">
+        <input
+          v-model="keyword"
+          type="search"
+          placeholder="Search listings, categories..."
+          class="input-field"
+          @focus="suggestionsOpen = true"
+          @blur="suggestionsOpen = false"
+        />
+
+        <div
+          v-if="suggestionsOpen && keyword.trim() && (matchedCategories.length > 0 || matchedListings.length > 0)"
+          class="absolute left-0 right-0 top-[calc(100%+6px)] z-10 rounded-card border border-light-grey bg-white p-2 shadow-md"
+        >
+          <template v-if="matchedCategories.length > 0">
+            <p class="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-medium-grey">Categories</p>
+            <div
+              v-for="c in matchedCategories"
+              :key="c"
+              class="cursor-pointer rounded-control px-2 py-1.5 text-sm font-medium text-uni-navy hover:bg-soft-grey"
+              @mousedown.prevent="chooseSuggestedCategory(c)"
+            >
+              {{ c }} <span class="text-xs text-medium-grey">&middot; {{ categoryCounts[c] ?? 0 }} listings</span>
+            </div>
+          </template>
+
+          <template v-if="matchedListings.length > 0">
+            <p class="mt-2 px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-medium-grey">Listings</p>
+            <div
+              v-for="l in matchedListings"
+              :key="l.id"
+              class="flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 hover:bg-soft-grey"
+              @mousedown.prevent="goToListing(l.id)"
+            >
+              <img v-if="l.imageUrl" :src="l.imageUrl" alt="" class="h-7 w-7 shrink-0 rounded object-cover" />
+              <div v-else class="h-7 w-7 shrink-0 rounded bg-sky-blue/20"></div>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-charcoal" v-html="highlightMatch(l.name)"></p>
+                <p class="text-xs text-medium-grey">{{ l.category }}</p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
       <button class="btn-secondary flex items-center gap-2 text-sm lg:hidden" @click="mobileFiltersOpen = !mobileFiltersOpen">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#163D72" stroke-width="2">
           <path d="M4 6h16M7 12h10M10 18h4" />

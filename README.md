@@ -58,8 +58,33 @@ packages they started as.
   its submitted listings before deciding, and reject with a reason the seller sees on their
   Account Settings page before resubmitting.
 - Student account management: admin can view/search every account (not just pending ones),
-  approve a pending signup, suspend or reactivate any student account, and expand an account
-  to see its businesses and the reports it filed/received.
+  approve a pending signup, suspend (with a reason the student sees if they try to log in) or
+  reactivate any student account, promote a student to Admin, and expand an account to see its
+  businesses and the reports it filed/received.
+- Self-service "Deactivate my account" from Account Settings - hides the student's businesses/
+  listings immediately, and simply logging back in with the right password reactivates it (no
+  admin step needed), reusing the existing DEACTIVATED account status.
+- A public landing hero (marketing copy, "how it works", featured verified businesses) shown on
+  Browse to logged-out visitors only; logged-in users see the existing browse hero straight away.
+- Search autocomplete on Browse - typing suggests matching categories and listings inline as you
+  type, before you even hit enter.
+- Share a listing (copy-link popover) from the listing detail page.
+- Compare up to 3 listings side by side - a "Compare" checkbox on any listing card, a persistent
+  tray showing the current selection, and a comparison table (price/status/views/saves).
+- A full "Recently viewed" page (beyond the dashboard's 3-item preview), with a "Clear history"
+  action.
+- "Contact seller" on a provider's profile - reveals the owner's email/phone to signed-in buyers
+  (no in-app messaging yet, so this is the stand-in).
+- A "Get verified" checklist on the seller dashboard for any business still PENDING (profile
+  complete / has a listing / has a logo).
+- Bulk activate/deactivate on "My listings" (multi-select + a sticky action bar), plus a
+  per-listing "Duplicate" action (creates a copy, saved inactive, ready to edit).
+- Site-wide announcements: admin can publish/deactivate a banner shown to every visitor (an
+  "Announcements" tab in the admin console), only one active at a time.
+- Admin activity log: a chronological, filterable trail of verify/reject, suspend/reactivate/
+  promote, resolve/dismiss and announcement actions, each attributed to the admin who did it.
+- CSV export of the reports queue from the admin console (client-side, respects the current
+  status filter).
 - Seller business performance: listings/views/saves/follower counts per business on the
   dashboard.
 - Follow a provider - heart-style "Follow" button on a provider's profile, with a "Providers
@@ -93,8 +118,6 @@ test script below) — it isn't just "compiles", it actually runs.
 
 ## Not built yet (next steps)
 
-- Any way to promote a user to ADMIN other than a direct SQL `UPDATE` (see below) — there's no
-  self-service or seed-admin flow yet.
 - Real email delivery for verification links.
 - Deployment/hosting decision (Section 13.1 in the docs still flags this as open).
 - Automated tests beyond the one Spring context smoke test — no unit/integration tests for
@@ -215,7 +238,9 @@ JOIN unilinkhub.businesses b ON b.id = l.business_id;
 -- Open reports waiting for admin review
 SELECT id, reason, details, status, created_at FROM unilinkhub.reports WHERE status = 'OPEN';
 
--- Promote a user to ADMIN (there's no API for this yet - see "Not built yet")
+-- Promote the very first admin this way (bootstrapping problem: "Promote to Admin" in the
+-- admin console needs an existing admin to click it). Every admin after that can be promoted
+-- from the console's "Student accounts" tab instead.
 UPDATE unilinkhub.users SET role = 'ADMIN' WHERE email = 'someone@mycput.ac.za';
 ```
 

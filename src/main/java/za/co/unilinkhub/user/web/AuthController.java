@@ -4,8 +4,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +24,9 @@ import za.co.unilinkhub.user.application.RequestPasswordResetUseCase;
 import za.co.unilinkhub.user.application.ResetPasswordUseCase;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
+import za.co.unilinkhub.user.domain.AccountStatus;
+import za.co.unilinkhub.user.domain.User;
+import za.co.unilinkhub.user.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -34,6 +40,8 @@ public class AuthController {
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
     private final ConfirmEmailChangeUseCase confirmEmailChangeUseCase;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -52,6 +60,31 @@ public class AuthController {
 
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody UserRequest.Login request) {
+        try {
+            return doLogin(request);
+        } catch (DisabledException ex) {
+            // A deactivated (self-service) account can reactivate itself simply by logging back
+            // in with the right password - a pending-verification account (also "disabled")
+            // cannot, since it has no password confirmation to lean on here, so it falls through.
+            User user = userRepository.findByEmail(request.email()).orElse(null);
+            if (user != null && user.getAccountStatus() == AccountStatus.DEACTIVATED
+                    && passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+                user.reactivate();
+                userRepository.save(user);
+                return doLogin(request);
+            }
+            throw ex;
+        } catch (LockedException ex) {
+            User user = userRepository.findByEmail(request.email()).orElse(null);
+            String reason = user == null ? null : user.getSuspensionReason();
+            String message = "Your account has been suspended"
+                    + (reason != null && !reason.isBlank() ? ": " + reason : ".")
+                    + " Contact an admin if you think this is a mistake.";
+            throw new LockedException(message);
+        }
+    }
+
+    private AuthResponse doLogin(UserRequest.Login request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );

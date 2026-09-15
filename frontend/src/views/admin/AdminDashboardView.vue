@@ -6,6 +6,8 @@ import type {
   AdminBusinessView,
   AdminStatsDTO,
   AdminUserDetailDTO,
+  AnnouncementDTO,
+  AuditLogEntryDTO,
   ListingDTO,
   ReportSummaryView,
   ReportStatus,
@@ -13,7 +15,7 @@ import type {
   UserResponse,
 } from "@/lib/types";
 
-type Section = "overview" | "reports" | "businesses" | "accounts";
+type Section = "overview" | "reports" | "businesses" | "accounts" | "announcements" | "activity";
 const activeSection = ref<Section>("overview");
 
 // ---- Overview ----
@@ -130,6 +132,30 @@ function selectReport(id: string) {
 function setFilter(value: ReportStatus | "ALL") {
   activeFilter.value = value;
   loadReports();
+}
+
+function exportReportsCsv() {
+  const header = ["Reason", "Status", "Target type", "Target", "Reporter", "Filed at"];
+  const rows = reports.value.map((r) => [
+    REASON_LABELS[r.reason] ?? r.reason,
+    STATUS_LABELS[r.status],
+    r.target.type,
+    r.target.label,
+    r.reporter.fullName,
+    r.createdAt,
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `reports-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 async function act(action: "begin-review" | "resolve" | "dismiss") {
@@ -328,11 +354,53 @@ async function loadAccounts() {
   }
 }
 
-async function acceptOrChangeAccount(id: string, action: "approve" | "suspend" | "reactivate") {
+async function acceptOrChangeAccount(id: string, action: "approve" | "reactivate") {
   actingAccountId.value = id;
   accountsError.value = "";
   try {
     await api.post(`/admin/users/${id}/${action}`);
+    await loadAccounts();
+  } catch (err) {
+    accountsError.value = extractErrorMessage(err);
+  } finally {
+    actingAccountId.value = null;
+  }
+}
+
+const suspendingAccountId = ref<string | null>(null);
+const suspendReason = ref("");
+
+function startSuspend(id: string) {
+  suspendingAccountId.value = id;
+  suspendReason.value = "";
+}
+
+function cancelSuspend() {
+  suspendingAccountId.value = null;
+}
+
+async function confirmSuspend(id: string) {
+  actingAccountId.value = id;
+  accountsError.value = "";
+  try {
+    await api.post(`/admin/users/${id}/suspend`, { reason: suspendReason.value });
+    suspendingAccountId.value = null;
+    await loadAccounts();
+  } catch (err) {
+    accountsError.value = extractErrorMessage(err);
+  } finally {
+    actingAccountId.value = null;
+  }
+}
+
+const promotingAccountId = ref<string | null>(null);
+
+async function confirmPromote(id: string) {
+  actingAccountId.value = id;
+  accountsError.value = "";
+  try {
+    await api.post(`/admin/users/${id}/promote`);
+    promotingAccountId.value = null;
     await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
@@ -364,8 +432,116 @@ async function toggleAccountExpand(id: string) {
   }
 }
 
+// ---- Announcements ----
+const announcements = ref<AnnouncementDTO[]>([]);
+const announcementsLoading = ref(false);
+const announcementsError = ref("");
+const newAnnouncementMessage = ref("");
+const newAnnouncementActive = ref(true);
+const publishingAnnouncement = ref(false);
+const decidingAnnouncementId = ref<string | null>(null);
+
+async function loadAnnouncements() {
+  announcementsLoading.value = true;
+  announcementsError.value = "";
+  try {
+    const { data } = await api.get<AnnouncementDTO[]>("/admin/announcements");
+    announcements.value = data;
+  } catch (err) {
+    announcementsError.value = extractErrorMessage(err);
+  } finally {
+    announcementsLoading.value = false;
+  }
+}
+
+async function publishAnnouncement() {
+  if (!newAnnouncementMessage.value.trim()) return;
+  publishingAnnouncement.value = true;
+  announcementsError.value = "";
+  try {
+    await api.post("/admin/announcements", { message: newAnnouncementMessage.value, active: newAnnouncementActive.value });
+    newAnnouncementMessage.value = "";
+    newAnnouncementActive.value = true;
+    await loadAnnouncements();
+  } catch (err) {
+    announcementsError.value = extractErrorMessage(err);
+  } finally {
+    publishingAnnouncement.value = false;
+  }
+}
+
+async function deactivateAnnouncement(id: string) {
+  decidingAnnouncementId.value = id;
+  announcementsError.value = "";
+  try {
+    await api.post(`/admin/announcements/${id}/deactivate`);
+    await loadAnnouncements();
+  } catch (err) {
+    announcementsError.value = extractErrorMessage(err);
+  } finally {
+    decidingAnnouncementId.value = null;
+  }
+}
+
+// ---- Activity log ----
+const activityEntries = ref<AuditLogEntryDTO[]>([]);
+const activityLoading = ref(false);
+const activityError = ref("");
+const activityFilter = ref<"ALL" | "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT">("ALL");
+
+const activityFilters: { value: typeof activityFilter.value; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "BUSINESS", label: "Verifications" },
+  { value: "ACCOUNT", label: "Accounts" },
+  { value: "REPORT", label: "Reports" },
+  { value: "ANNOUNCEMENT", label: "Announcements" },
+];
+
+const CATEGORY_ICONS: Record<string, string> = {
+  BUSINESS: "✓",
+  ACCOUNT: "⏸",
+  REPORT: "🚩",
+  ANNOUNCEMENT: "📢",
+};
+
+function activityRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+async function loadActivityLog() {
+  activityLoading.value = true;
+  activityError.value = "";
+  try {
+    const { data } = await api.get<AuditLogEntryDTO[]>("/admin/audit-log", { params: { category: activityFilter.value } });
+    activityEntries.value = data;
+  } catch (err) {
+    activityError.value = extractErrorMessage(err);
+  } finally {
+    activityLoading.value = false;
+  }
+}
+
+function setActivityFilter(value: typeof activityFilter.value) {
+  activityFilter.value = value;
+  loadActivityLog();
+}
+
 onMounted(async () => {
-  await Promise.all([loadStats(), loadCounts(), loadReports(), loadBusinesses(), loadAccounts()]);
+  await Promise.all([
+    loadStats(),
+    loadCounts(),
+    loadReports(),
+    loadBusinesses(),
+    loadAccounts(),
+    loadAnnouncements(),
+    loadActivityLog(),
+  ]);
 });
 </script>
 
@@ -410,6 +586,20 @@ onMounted(async () => {
         >
           Student accounts
           <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ accountCountFor('PENDING_VERIFICATION') }}</span>
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'announcements' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'announcements'"
+        >
+          Announcements
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'activity' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'activity'"
+        >
+          Activity log
         </button>
       </div>
 
@@ -506,15 +696,24 @@ onMounted(async () => {
       <section v-else-if="activeSection === 'reports'" class="space-y-5">
         <p v-if="reportsError" class="text-sm text-danger">{{ reportsError }}</p>
 
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="f in filters"
+              :key="f.value"
+              class="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold"
+              :class="activeFilter === f.value ? 'border-campus-teal bg-campus-teal text-white' : 'border-light-grey bg-white text-charcoal hover:border-campus-teal'"
+              @click="setFilter(f.value)"
+            >
+              {{ f.label }} &nbsp;{{ countFor(f.value) }}
+            </button>
+          </div>
           <button
-            v-for="f in filters"
-            :key="f.value"
-            class="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold"
-            :class="activeFilter === f.value ? 'border-campus-teal bg-campus-teal text-white' : 'border-light-grey bg-white text-charcoal hover:border-campus-teal'"
-            @click="setFilter(f.value)"
+            class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-control border border-uni-navy bg-white px-3.5 py-1.5 text-sm font-semibold text-uni-navy disabled:opacity-50"
+            :disabled="reports.length === 0"
+            @click="exportReportsCsv"
           >
-            {{ f.label }} &nbsp;{{ countFor(f.value) }}
+            Export CSV
           </button>
         </div>
 
@@ -750,7 +949,7 @@ onMounted(async () => {
       </section>
 
       <!-- Student accounts section -->
-      <section v-else class="space-y-5">
+      <section v-else-if="activeSection === 'accounts'" class="space-y-5">
         <p v-if="accountsError" class="text-sm text-danger">{{ accountsError }}</p>
         <p v-else-if="accountsLoading" class="text-sm text-medium-grey">Loading...</p>
 
@@ -804,6 +1003,9 @@ onMounted(async () => {
                     <span v-if="u.seller" class="badge bg-sky-blue/20 text-uni-navy">Seller</span>
                     <span v-if="u.role === 'ADMIN'" class="badge bg-academic-gold/20 text-uni-navy">Admin</span>
                   </div>
+                  <p v-if="u.accountStatus === 'SUSPENDED' && u.suspensionReason" class="mb-1 text-[13px] italic text-danger">
+                    "{{ u.suspensionReason }}"
+                  </p>
                   <p class="text-[13px] text-medium-grey">
                     {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
                     &middot;
@@ -812,30 +1014,80 @@ onMounted(async () => {
                     </button>
                   </p>
                 </div>
-                <button
-                  v-if="u.accountStatus === 'PENDING_VERIFICATION'"
-                  class="btn-primary text-sm"
-                  :disabled="actingAccountId === u.id"
-                  @click="acceptOrChangeAccount(u.id, 'approve')"
-                >
-                  Approve
-                </button>
-                <button
-                  v-else-if="u.accountStatus === 'SUSPENDED'"
-                  class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  :disabled="actingAccountId === u.id"
-                  @click="acceptOrChangeAccount(u.id, 'reactivate')"
-                >
-                  Reactivate
-                </button>
-                <button
-                  v-else-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
-                  class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50"
-                  :disabled="actingAccountId === u.id"
-                  @click="acceptOrChangeAccount(u.id, 'suspend')"
-                >
-                  Suspend
-                </button>
+                <div class="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    v-if="u.accountStatus === 'PENDING_VERIFICATION'"
+                    class="btn-primary text-sm"
+                    :disabled="actingAccountId === u.id"
+                    @click="acceptOrChangeAccount(u.id, 'approve')"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    v-else-if="u.accountStatus === 'SUSPENDED'"
+                    class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    :disabled="actingAccountId === u.id"
+                    @click="acceptOrChangeAccount(u.id, 'reactivate')"
+                  >
+                    Reactivate
+                  </button>
+                  <button
+                    v-else-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
+                    class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50"
+                    :disabled="actingAccountId === u.id"
+                    @click="startSuspend(u.id)"
+                  >
+                    Suspend
+                  </button>
+                  <button
+                    v-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
+                    class="inline-flex items-center justify-center rounded-control border border-academic-gold bg-white px-4 py-2 text-sm font-semibold text-uni-navy disabled:opacity-50"
+                    :disabled="actingAccountId === u.id"
+                    @click="promotingAccountId = u.id"
+                  >
+                    Promote to Admin
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="suspendingAccountId === u.id" class="space-y-2 rounded-control border border-danger/30 bg-danger/5 p-3">
+                <textarea
+                  v-model="suspendReason"
+                  rows="2"
+                  placeholder="Why is this account being suspended? The student will see this if they try to log in."
+                  class="input-field resize-y"
+                ></textarea>
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary text-sm" @click="cancelSuspend">Cancel</button>
+                  <button
+                    class="inline-flex items-center justify-center rounded-control bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    :disabled="actingAccountId === u.id"
+                    @click="confirmSuspend(u.id)"
+                  >
+                    Suspend account
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="promotingAccountId === u.id" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="promotingAccountId = null">
+                <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+                  <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-academic-gold/15 text-2xl">👑</div>
+                  <h2 class="mt-3 text-center font-display text-base font-bold text-uni-navy">Promote {{ u.firstName }} {{ u.lastName }} to Admin?</h2>
+                  <p class="mt-2 text-center text-sm text-charcoal">
+                    They will gain full access to the admin console - business verification, report review, account
+                    management and site announcements.
+                  </p>
+                  <div class="mt-4 flex gap-2">
+                    <button class="btn-secondary flex-1 text-sm" @click="promotingAccountId = null">Cancel</button>
+                    <button
+                      class="inline-flex flex-1 items-center justify-center rounded-control bg-academic-gold px-4 py-2 text-sm font-semibold text-uni-navy disabled:opacity-50"
+                      :disabled="actingAccountId === u.id"
+                      @click="confirmPromote(u.id)"
+                    >
+                      Promote to Admin
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div v-if="expandedAccountId === u.id" class="space-y-3 rounded-control border border-light-grey bg-soft-grey p-3">
@@ -893,6 +1145,104 @@ onMounted(async () => {
             </div>
           </div>
         </template>
+      </section>
+
+      <!-- Announcements section -->
+      <section v-else-if="activeSection === 'announcements'" class="space-y-5">
+        <p v-if="announcementsError" class="text-sm text-danger">{{ announcementsError }}</p>
+
+        <div class="card space-y-3">
+          <h2 class="font-display text-base font-semibold text-uni-navy">New announcement</h2>
+          <textarea
+            v-model="newAnnouncementMessage"
+            rows="2"
+            placeholder="Message shown to every visitor..."
+            class="input-field resize-y"
+          ></textarea>
+          <label class="flex items-center gap-2 text-sm text-charcoal">
+            <input v-model="newAnnouncementActive" type="checkbox" class="accent-campus-teal" />
+            Active - show this banner site-wide now
+          </label>
+          <button
+            class="btn-primary text-sm"
+            :disabled="publishingAnnouncement || !newAnnouncementMessage.trim()"
+            @click="publishAnnouncement"
+          >
+            {{ publishingAnnouncement ? "Publishing..." : "Publish announcement" }}
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="font-display text-base font-semibold text-uni-navy">History</h2>
+          <p v-if="announcementsLoading" class="text-sm text-medium-grey">Loading...</p>
+          <p v-else-if="announcements.length === 0" class="card text-sm text-medium-grey">No announcements published yet.</p>
+          <div v-else class="flex flex-col gap-2">
+            <div
+              v-for="a in announcements"
+              :key="a.id"
+              class="card flex items-center justify-between gap-3"
+              :class="{ 'opacity-70': !a.active }"
+            >
+              <div>
+                <p class="text-sm text-charcoal">{{ a.message }}</p>
+                <p class="text-xs text-medium-grey">Posted {{ relativeTime(a.createdAt) }}</p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <span class="badge" :class="a.active ? 'bg-success/15 text-success' : 'bg-medium-grey/15 text-medium-grey'">
+                  {{ a.active ? "Active" : "Inactive" }}
+                </span>
+                <button
+                  v-if="a.active"
+                  class="text-xs font-semibold text-danger disabled:opacity-50"
+                  :disabled="decidingAnnouncementId === a.id"
+                  @click="deactivateAnnouncement(a.id)"
+                >
+                  Deactivate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Activity log section -->
+      <section v-else-if="activeSection === 'activity'" class="space-y-5">
+        <p v-if="activityError" class="text-sm text-danger">{{ activityError }}</p>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="f in activityFilters"
+            :key="f.value"
+            class="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold"
+            :class="activityFilter === f.value ? 'border-campus-teal bg-campus-teal text-white' : 'border-light-grey bg-white text-charcoal hover:border-campus-teal'"
+            @click="setActivityFilter(f.value)"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+
+        <p v-if="activityLoading" class="text-sm text-medium-grey">Loading...</p>
+        <div v-else-if="activityEntries.length === 0" class="card text-sm text-medium-grey">No activity in this filter yet.</div>
+
+        <div v-else class="card divide-y divide-light-grey !p-0">
+          <div v-for="entry in activityEntries" :key="entry.id" class="flex items-start gap-3 px-4 py-3">
+            <span
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              :class="{
+                'bg-success/15 text-success': entry.category === 'BUSINESS',
+                'bg-warning/15 text-warning': entry.category === 'ACCOUNT',
+                'bg-charcoal/10 text-charcoal': entry.category === 'REPORT',
+                'bg-info/15 text-info': entry.category === 'ANNOUNCEMENT',
+              }"
+            >
+              {{ CATEGORY_ICONS[entry.category] }}
+            </span>
+            <div class="flex-1">
+              <p class="text-sm text-charcoal">{{ entry.description }}</p>
+              <p class="text-xs text-medium-grey">by {{ entry.adminName }} &middot; {{ activityRelativeTime(entry.createdAt) }}</p>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   </div>

@@ -16,6 +16,7 @@ public record UserDTO(
         String role,
         String accountStatus,
         boolean seller,
+        String suspensionReason,
         LocalDateTime createdAt
 ) {
     public static UserDTO from(User user) {
@@ -30,6 +31,7 @@ public record UserDTO(
                 user.getRole().name(),
                 user.getAccountStatus().name(),
                 user.isSeller(),
+                user.getSuspensionReason(),
                 user.getCreatedAt()
         );
     }

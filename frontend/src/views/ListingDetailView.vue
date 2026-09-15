@@ -21,6 +21,20 @@ const reportReason = ref("MISREPRESENTATION");
 const reportDetails = ref("");
 const reportStatus = ref("");
 
+const shareOpen = ref(false);
+const linkCopied = ref(false);
+const shareUrl = `${window.location.origin}/listings/${route.params.id}`;
+
+async function copyShareLink() {
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    linkCopied.value = true;
+    setTimeout(() => (linkCopied.value = false), 2000);
+  } catch {
+    // Clipboard access can be blocked (permissions, insecure context) - the link is still shown to copy manually.
+  }
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
 }
@@ -100,6 +114,27 @@ onMounted(load);
               />
             </svg>
           </button>
+          <div class="relative">
+            <button
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-light-grey"
+              aria-label="Share listing"
+              @click="shareOpen = !shareOpen"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#163D72" stroke-width="2">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+              </svg>
+            </button>
+
+            <div v-if="shareOpen" class="absolute right-0 top-[calc(100%+8px)] z-10 w-72 rounded-card border border-light-grey bg-white p-3 shadow-md">
+              <p class="mb-2 text-xs font-semibold text-medium-grey">Share this listing</p>
+              <div class="flex items-center gap-2 rounded-control border border-light-grey bg-soft-grey px-2.5 py-2">
+                <span class="flex-1 truncate text-xs text-charcoal">{{ shareUrl }}</span>
+                <button class="btn-primary px-2.5 py-1 text-xs" @click="copyShareLink">Copy</button>
+              </div>
+              <p v-if="linkCopied" class="mt-1.5 text-xs font-medium text-success">Link copied to clipboard!</p>
+            </div>
+          </div>
         </div>
       </div>
       <p class="text-sm text-medium-grey">{{ listing.category }}</p>
