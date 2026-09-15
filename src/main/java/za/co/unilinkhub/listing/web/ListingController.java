@@ -85,7 +85,8 @@ public class ListingController {
 
     @GetMapping("/{id}")
     public ListingDTO getById(@PathVariable UUID id) {
-        return listingService.getById(id);
+        ListingDTO listing = listingService.getById(id);
+        return listing.withSavedCount(savedListingService.countSaves(id));
     }
 
     @GetMapping

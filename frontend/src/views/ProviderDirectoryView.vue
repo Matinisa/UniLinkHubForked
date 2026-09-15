@@ -72,14 +72,26 @@ onMounted(search);
         :to="`/providers/${b.businessId}`"
         class="card space-y-2 transition hover:shadow-md"
       >
-        <div class="flex items-center justify-between">
-          <h3 class="font-display text-base font-semibold text-uni-navy">{{ b.businessName }}</h3>
-          <span
-            class="badge shrink-0"
-            :class="b.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'"
-          >
-            {{ b.verificationStatus === "VERIFIED" ? "Verified" : "Pending" }}
-          </span>
+        <div class="flex items-center gap-2.5">
+          <div
+            v-if="b.imageUrl"
+            class="h-10 w-10 shrink-0 rounded-full border border-light-grey bg-cover bg-center"
+            :style="{ backgroundImage: `url(${b.imageUrl})` }"
+          ></div>
+          <div v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-blue/20 font-display text-sm font-bold text-uni-navy">
+            {{ b.businessName.charAt(0) }}
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="font-display text-base font-semibold text-uni-navy">{{ b.businessName }}</h3>
+              <span
+                class="badge shrink-0"
+                :class="b.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'"
+              >
+                {{ b.verificationStatus === "VERIFIED" ? "Verified" : "Pending" }}
+              </span>
+            </div>
+          </div>
         </div>
         <p class="text-xs text-medium-grey">{{ b.category }}</p>
         <p class="line-clamp-2 text-sm text-charcoal">{{ b.description }}</p>

@@ -43,9 +43,20 @@ packages they started as.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
   resolves reporter/target ids into names for display, and a status-counts endpoint.
 - Business verification: admin can list pending businesses and verify/reject them.
-- Student account approval: admin can list accounts stuck in PENDING_VERIFICATION and approve
-  them directly, unblocking login without needing to click the (console-only) verification
-  link.
+- Student account management: admin can view/search every account (not just pending ones),
+  approve a pending signup, and suspend or reactivate any student account.
+- Follow a provider - heart-style "Follow" button on a provider's profile, with a "Providers
+  you follow" section on the buyer dashboard, mirroring the saved-listings pattern.
+- Business logo (optional image URL) shown on directory cards and the provider profile header.
+- "More from this seller" - related active listings from the same business shown on a
+  listing's detail page.
+- Listing social proof: view count and "N students saved this" shown on the listing detail
+  page, plus how long ago it was listed.
+- Report history context: when reviewing a report, admins see how many total reports exist
+  against that same target.
+- Admin business verification drilldown: expand a pending business to see its submitted
+  listings before deciding to verify or reject.
+- A proper 404 page for unmatched routes instead of a blank screen.
 - Saved/favourited listings (heart toggle on any listing card or the listing detail page),
   recently viewed listings (tracked client-side, per browser), and a "your reports" status
   list - the Buyer Dashboard requirements from Section 11.1, all on the same single dashboard
@@ -59,7 +70,7 @@ packages they started as.
 - A functional Vue UI for all of the above: browse with filters, provider directory, listing
   detail + report, provider profile, login/register, forgot/reset password, account settings,
   a combined buyer/seller dashboard, and an admin console (overview, report queue, business
-  verification, student account approval) gated by role.
+  verification, student account management) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

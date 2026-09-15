@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
+import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
 import ListingCard from "@/components/ListingCard.vue";
@@ -9,6 +10,7 @@ import type { BusinessDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@
 
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
+const followed = useFollowedProvidersStore();
 
 const businesses = ref<BusinessDTO[]>([]);
 const listingsByBusiness = ref<Record<string, ListingDTO[]>>({});
@@ -240,7 +242,7 @@ async function saveEdit(listing: ListingDTO) {
 
 onMounted(async () => {
   recentlyViewed.value = getRecentlyViewed();
-  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved()]);
+  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved(), followed.fetchFollowed()]);
 });
 </script>
 
@@ -266,6 +268,36 @@ onMounted(async () => {
       </div>
       <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ListingCard v-for="listing in saved.listings" :key="listing.id" :listing="listing" />
+      </div>
+    </div>
+
+    <!-- Providers you follow -->
+    <div>
+      <div class="mb-3 flex items-center gap-2">
+        <h2 class="font-display text-lg font-semibold text-uni-navy">Providers you follow</h2>
+        <span v-if="followed.providers.length > 0" class="text-xs text-medium-grey">{{ followed.providers.length }} followed</span>
+      </div>
+      <div v-if="followed.providers.length === 0" class="card text-sm text-medium-grey">
+        Follow a provider from their profile to see new listings from them here.
+      </div>
+      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <RouterLink
+          v-for="p in followed.providers"
+          :key="p.businessId"
+          :to="`/providers/${p.businessId}`"
+          class="card space-y-2 transition hover:shadow-md"
+        >
+          <div class="flex items-center justify-between">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">{{ p.businessName }}</h3>
+            <span
+              class="badge"
+              :class="p.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'"
+            >
+              {{ p.verificationStatus === "VERIFIED" ? "Verified" : "Pending" }}
+            </span>
+          </div>
+          <p class="text-xs text-medium-grey">{{ p.category }} &middot; {{ p.activeListingCount }} active listings</p>
+        </RouterLink>
       </div>
     </div>
 

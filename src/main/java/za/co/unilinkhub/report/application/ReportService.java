@@ -90,7 +90,9 @@ public class ReportService {
             case USER -> resolveUserTarget(report.getTargetId());
         };
 
-        return ReportSummaryView.of(report, reporter, target);
+        long totalReportsOnTarget = reportRepository.countByTargetTypeAndTargetId(report.getTargetType(), report.getTargetId());
+
+        return ReportSummaryView.of(report, reporter, target, totalReportsOnTarget);
     }
 
     private TargetSummary resolveListingTarget(UUID listingId) {

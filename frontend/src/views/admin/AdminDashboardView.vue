@@ -5,6 +5,7 @@ import AdminNav from "@/components/AdminNav.vue";
 import type {
   AdminBusinessView,
   AdminStatsDTO,
+  ListingDTO,
   ReportSummaryView,
   ReportStatus,
   ReportStatusCounts,
@@ -180,6 +181,33 @@ async function loadBusinesses() {
   }
 }
 
+const expandedBusinessId = ref<string | null>(null);
+const businessListings = ref<Record<string, ListingDTO[]>>({});
+const businessListingsLoading = ref<string | null>(null);
+
+async function toggleBusinessExpand(id: string) {
+  if (expandedBusinessId.value === id) {
+    expandedBusinessId.value = null;
+    return;
+  }
+  expandedBusinessId.value = id;
+  if (!businessListings.value[id]) {
+    businessListingsLoading.value = id;
+    try {
+      const { data } = await api.get<ListingDTO[]>(`/listings/business/${id}`);
+      businessListings.value[id] = data;
+    } catch (err) {
+      businessesError.value = extractErrorMessage(err);
+    } finally {
+      businessListingsLoading.value = null;
+    }
+  }
+}
+
+function formatPrice(price: number) {
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
+}
+
 async function decide(id: string, action: "verify" | "reject") {
   actingBusinessId.value = id;
   businessesError.value = "";
@@ -194,17 +222,55 @@ async function decide(id: string, action: "verify" | "reject") {
 }
 
 // ---- Student accounts ----
-const pendingAccounts = ref<UserResponse[]>([]);
+const allAccounts = ref<UserResponse[]>([]);
 const accountsLoading = ref(false);
 const actingAccountId = ref<string | null>(null);
 const accountsError = ref("");
+const accountFilter = ref<"ALL" | "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED">("ALL");
+const accountKeyword = ref("");
 
-async function loadPendingAccounts() {
+const accountFilters: { value: "ALL" | "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED"; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "PENDING_VERIFICATION", label: "Pending" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "SUSPENDED", label: "Suspended" },
+];
+
+function accountCountFor(value: string): number {
+  if (value === "ALL") return allAccounts.value.length;
+  return allAccounts.value.filter((u) => u.accountStatus === value).length;
+}
+
+const filteredAccounts = computed(() => {
+  let list = allAccounts.value;
+  if (accountFilter.value !== "ALL") {
+    list = list.filter((u) => u.accountStatus === accountFilter.value);
+  }
+  const needle = accountKeyword.value.trim().toLowerCase();
+  if (needle) {
+    list = list.filter(
+      (u) =>
+        `${u.firstName} ${u.lastName}`.toLowerCase().includes(needle) ||
+        u.email.toLowerCase().includes(needle) ||
+        u.studentNumber.toLowerCase().includes(needle),
+    );
+  }
+  return list;
+});
+
+function accountAge(iso: string): string {
+  const days = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days < 1) return "joined today";
+  if (days === 1) return "joined 1 day ago";
+  return `joined ${days} days ago`;
+}
+
+async function loadAccounts() {
   accountsLoading.value = true;
   accountsError.value = "";
   try {
-    const { data } = await api.get<UserResponse[]>("/admin/users/pending");
-    pendingAccounts.value = data;
+    const { data } = await api.get<UserResponse[]>("/admin/users", { params: { status: "ALL" } });
+    allAccounts.value = data;
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
   } finally {
@@ -212,12 +278,12 @@ async function loadPendingAccounts() {
   }
 }
 
-async function approveAccount(id: string) {
+async function acceptOrChangeAccount(id: string, action: "approve" | "suspend" | "reactivate") {
   actingAccountId.value = id;
   accountsError.value = "";
   try {
-    await api.post(`/admin/users/${id}/approve`);
-    await loadPendingAccounts();
+    await api.post(`/admin/users/${id}/${action}`);
+    await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
   } finally {
@@ -226,7 +292,7 @@ async function approveAccount(id: string) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadStats(), loadCounts(), loadReports(), loadBusinesses(), loadPendingAccounts()]);
+  await Promise.all([loadStats(), loadCounts(), loadReports(), loadBusinesses(), loadAccounts()]);
 });
 </script>
 
@@ -270,7 +336,7 @@ onMounted(async () => {
           @click="activeSection = 'accounts'"
         >
           Student accounts
-          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ pendingAccounts.length }}</span>
+          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ accountCountFor('PENDING_VERIFICATION') }}</span>
         </button>
       </div>
 
@@ -419,6 +485,14 @@ onMounted(async () => {
               </p>
             </div>
 
+            <div v-if="selected.totalReportsOnTarget > 1" class="flex items-start gap-2.5 rounded-control border border-danger/30 bg-danger/10 p-3">
+              <span class="badge bg-danger/15 text-danger shrink-0">{{ selected.totalReportsOnTarget }} total reports</span>
+              <p class="text-[13px] text-charcoal">
+                This {{ selected.target.type === "LISTING" ? "listing" : "provider" }} has been reported
+                {{ selected.totalReportsOnTarget }} times in total.
+              </p>
+            </div>
+
             <div class="grid grid-cols-1 gap-4 rounded-control bg-soft-grey p-4 sm:grid-cols-2">
               <div>
                 <p class="mb-1 text-xs uppercase tracking-wide text-medium-grey">Reported by</p>
@@ -507,36 +581,56 @@ onMounted(async () => {
             <p v-if="pending.length === 0" class="card text-sm text-medium-grey">Nothing waiting on review right now.</p>
 
             <div v-else class="flex flex-col gap-3">
-              <div
-                v-for="b in pending"
-                :key="b.id"
-                class="card flex flex-col items-start justify-between gap-4 p-[18px] sm:flex-row"
-              >
-                <div class="flex-1">
-                  <div class="mb-1.5 flex items-center gap-2.5">
-                    <span class="text-base font-semibold text-uni-navy">{{ b.businessName }}</span>
-                    <span class="badge bg-academic-gold/20 text-uni-navy">{{ b.category }}</span>
+              <div v-for="b in pending" :key="b.id" class="card space-y-4 p-[18px]">
+                <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                  <div class="flex-1">
+                    <div class="mb-1.5 flex items-center gap-2.5">
+                      <span class="text-base font-semibold text-uni-navy">{{ b.businessName }}</span>
+                      <span class="badge bg-academic-gold/20 text-uni-navy">{{ b.category }}</span>
+                    </div>
+                    <p class="mb-2 text-[13px] leading-relaxed text-charcoal">{{ b.description }}</p>
+                    <p class="text-xs text-medium-grey">
+                      Owner: {{ b.ownerFullName }} &middot; #{{ b.ownerStudentNumber }} &middot; Submitted {{ relativeDays(b.createdAt) }}
+                      &middot;
+                      <button class="font-medium text-campus-teal underline" @click="toggleBusinessExpand(b.id)">
+                        {{ expandedBusinessId === b.id ? "Hide listings" : "View listings" }}
+                      </button>
+                    </p>
                   </div>
-                  <p class="mb-2 text-[13px] leading-relaxed text-charcoal">{{ b.description }}</p>
-                  <p class="text-xs text-medium-grey">
-                    Owner: {{ b.ownerFullName }} &middot; #{{ b.ownerStudentNumber }} &middot; Submitted {{ relativeDays(b.createdAt) }}
-                  </p>
+                  <div class="flex shrink-0 gap-2.5">
+                    <button
+                      class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2.5 text-sm font-semibold text-danger disabled:opacity-50"
+                      :disabled="actingBusinessId === b.id"
+                      @click="decide(b.id, 'reject')"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                      :disabled="actingBusinessId === b.id"
+                      @click="decide(b.id, 'verify')"
+                    >
+                      Verify
+                    </button>
+                  </div>
                 </div>
-                <div class="flex shrink-0 gap-2.5">
-                  <button
-                    class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2.5 text-sm font-semibold text-danger disabled:opacity-50"
-                    :disabled="actingBusinessId === b.id"
-                    @click="decide(b.id, 'reject')"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                    :disabled="actingBusinessId === b.id"
-                    @click="decide(b.id, 'verify')"
-                  >
-                    Verify
-                  </button>
+
+                <div v-if="expandedBusinessId === b.id" class="rounded-control border border-light-grey bg-soft-grey p-3">
+                  <p v-if="businessListingsLoading === b.id" class="text-xs text-medium-grey">Loading listings...</p>
+                  <template v-else>
+                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-medium-grey">
+                      Submitted listings ({{ (businessListings[b.id] ?? []).length }})
+                    </p>
+                    <p v-if="(businessListings[b.id] ?? []).length === 0" class="text-sm text-medium-grey">
+                      No listings yet.
+                    </p>
+                    <ul v-else class="space-y-1.5">
+                      <li v-for="l in businessListings[b.id]" :key="l.id" class="flex items-center justify-between text-sm">
+                        <span class="text-charcoal">{{ l.name }}</span>
+                        <span class="font-medium text-campus-teal">{{ formatPrice(l.price) }}</span>
+                      </li>
+                    </ul>
+                  </template>
                 </div>
               </div>
             </div>
@@ -567,45 +661,90 @@ onMounted(async () => {
       </section>
 
       <!-- Student accounts section -->
-      <section v-else class="space-y-6">
+      <section v-else class="space-y-5">
         <p v-if="accountsError" class="text-sm text-danger">{{ accountsError }}</p>
         <p v-else-if="accountsLoading" class="text-sm text-medium-grey">Loading...</p>
 
-        <div>
-          <div class="mb-3 flex items-center gap-2">
-            <h3 class="font-display text-[15px] font-semibold text-uni-navy">Awaiting approval</h3>
-            <span class="badge bg-warning/15 text-warning">{{ pendingAccounts.length }} pending</span>
+        <template v-else>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="f in accountFilters"
+                :key="f.value"
+                class="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold"
+                :class="accountFilter === f.value ? 'border-campus-teal bg-campus-teal text-white' : 'border-light-grey bg-white text-charcoal hover:border-campus-teal'"
+                @click="accountFilter = f.value"
+              >
+                {{ f.label }} &nbsp;{{ accountCountFor(f.value) }}
+              </button>
+            </div>
+            <input
+              v-model="accountKeyword"
+              type="search"
+              placeholder="Search by name, email or student number..."
+              class="input-field sm:w-72"
+            />
           </div>
 
-          <p v-if="!accountsLoading && pendingAccounts.length === 0" class="card text-sm text-medium-grey">
-            No student accounts waiting on approval right now.
+          <p v-if="filteredAccounts.length === 0" class="card text-sm text-medium-grey">
+            No accounts match this filter.
           </p>
 
-          <div v-else class="flex flex-col gap-3">
+          <div v-else class="flex flex-col gap-2">
             <div
-              v-for="u in pendingAccounts"
+              v-for="u in filteredAccounts"
               :key="u.id"
-              class="card flex flex-col items-start justify-between gap-4 p-[18px] sm:flex-row"
+              class="card flex flex-col items-start justify-between gap-3 p-[18px] sm:flex-row sm:items-center"
+              :class="u.accountStatus === 'SUSPENDED' ? 'border-danger/30 bg-danger/5' : ''"
             >
               <div class="flex-1">
-                <div class="mb-1.5 flex items-center gap-2.5">
+                <div class="mb-1 flex items-center gap-2.5">
                   <span class="text-base font-semibold text-uni-navy">{{ u.firstName }} {{ u.lastName }}</span>
-                  <span class="badge bg-sky-blue/20 text-uni-navy">#{{ u.studentNumber }}</span>
+                  <span
+                    class="badge"
+                    :class="{
+                      'bg-success/15 text-success': u.accountStatus === 'ACTIVE',
+                      'bg-warning/15 text-warning': u.accountStatus === 'PENDING_VERIFICATION',
+                      'bg-danger/15 text-danger': u.accountStatus === 'SUSPENDED',
+                      'bg-medium-grey/15 text-medium-grey': u.accountStatus === 'DEACTIVATED',
+                    }"
+                  >
+                    {{ u.accountStatus === "PENDING_VERIFICATION" ? "Pending" : u.accountStatus.charAt(0) + u.accountStatus.slice(1).toLowerCase() }}
+                  </span>
+                  <span v-if="u.seller" class="badge bg-sky-blue/20 text-uni-navy">Seller</span>
+                  <span v-if="u.role === 'ADMIN'" class="badge bg-academic-gold/20 text-uni-navy">Admin</span>
                 </div>
-                <p class="text-[13px] text-charcoal">{{ u.email }}</p>
+                <p class="text-[13px] text-medium-grey">
+                  {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
+                </p>
               </div>
-              <div class="flex shrink-0 gap-2.5">
-                <button
-                  class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  :disabled="actingAccountId === u.id"
-                  @click="approveAccount(u.id)"
-                >
-                  Approve
-                </button>
-              </div>
+              <button
+                v-if="u.accountStatus === 'PENDING_VERIFICATION'"
+                class="btn-primary text-sm"
+                :disabled="actingAccountId === u.id"
+                @click="acceptOrChangeAccount(u.id, 'approve')"
+              >
+                Approve
+              </button>
+              <button
+                v-else-if="u.accountStatus === 'SUSPENDED'"
+                class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                :disabled="actingAccountId === u.id"
+                @click="acceptOrChangeAccount(u.id, 'reactivate')"
+              >
+                Reactivate
+              </button>
+              <button
+                v-else-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
+                class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50"
+                :disabled="actingAccountId === u.id"
+                @click="acceptOrChangeAccount(u.id, 'suspend')"
+              >
+                Suspend
+              </button>
             </div>
           </div>
-        </div>
+        </template>
       </section>
     </main>
   </div>

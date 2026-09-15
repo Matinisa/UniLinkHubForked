@@ -23,6 +23,7 @@ export interface BusinessDTO {
   description: string;
   category: string;
   verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+  imageUrl: string | null;
   createdAt: string;
 }
 
@@ -41,6 +42,7 @@ export interface ListingDTO {
   durationMinutes: number | null;
   availabilitySchedule: string | null;
   createdAt: string;
+  savedCount: number;
 }
 
 export interface ReportDTO {
@@ -83,6 +85,7 @@ export interface ReportSummaryView {
   resolvedAt: string | null;
   reporter: ReporterSummary;
   target: TargetSummary;
+  totalReportsOnTarget: number;
 }
 
 export interface ReportStatusCounts {
@@ -110,6 +113,7 @@ export interface ProviderProfileDTO {
   description: string;
   category: string;
   verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+  imageUrl: string | null;
   ownerId: string;
   ownerFullName: string;
   activeListingCount: number;

@@ -46,6 +46,9 @@ public class Business {
     @Column(name = "verification_status", nullable = false, length = 20)
     private VerificationStatus verificationStatus = VerificationStatus.PENDING;
 
+    @Column(name = "image_url", length = 1000)
+    private String imageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -65,7 +68,7 @@ public class Business {
         return new Business(ownerId, businessName, description, category);
     }
 
-    public void updateDetails(String businessName, String description, String category) {
+    public void updateDetails(String businessName, String description, String category, String imageUrl) {
         if (businessName != null && !businessName.isBlank()) {
             this.businessName = businessName;
         }
@@ -74,6 +77,9 @@ public class Business {
         }
         if (category != null && !category.isBlank()) {
             this.category = category;
+        }
+        if (imageUrl != null) {
+            this.imageUrl = imageUrl.isBlank() ? null : imageUrl;
         }
     }
 

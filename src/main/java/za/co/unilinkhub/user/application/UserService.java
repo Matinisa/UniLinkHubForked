@@ -8,6 +8,7 @@ import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
 import za.co.unilinkhub.user.repository.UserRepository;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +44,41 @@ public class UserService {
     public UserDTO approveAccount(UUID userId) {
         User user = findUser(userId);
         user.approve();
+        return UserDTO.from(userRepository.save(user));
+    }
+
+    public List<UserDTO> listAccounts(String status, String keyword) {
+        List<User> users = userRepository.findAll();
+
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
+            AccountStatus filter = AccountStatus.valueOf(status.toUpperCase());
+            users = users.stream().filter(u -> u.getAccountStatus() == filter).toList();
+        }
+
+        if (keyword != null && !keyword.isBlank()) {
+            String needle = keyword.toLowerCase();
+            users = users.stream()
+                    .filter(u -> u.getFullName().toLowerCase().contains(needle)
+                            || u.getEmail().toLowerCase().contains(needle)
+                            || u.getStudentNumber().toLowerCase().contains(needle))
+                    .toList();
+        }
+
+        return users.stream()
+                .sorted(Comparator.comparing(User::getCreatedAt).reversed())
+                .map(UserDTO::from)
+                .toList();
+    }
+
+    public UserDTO suspendAccount(UUID userId) {
+        User user = findUser(userId);
+        user.suspend();
+        return UserDTO.from(userRepository.save(user));
+    }
+
+    public UserDTO reactivateAccount(UUID userId) {
+        User user = findUser(userId);
+        user.reactivate();
         return UserDTO.from(userRepository.save(user));
     }
 

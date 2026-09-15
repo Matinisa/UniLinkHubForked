@@ -14,4 +14,6 @@ public interface SavedListingRepository {
     void deleteByUserIdAndListingId(UUID userId, UUID listingId);
 
     List<SavedListing> findByUserId(UUID userId);
+
+    long countByListingId(UUID listingId);
 }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
+import { useFollowedProvidersStore } from "@/stores/followedProviders";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,7 @@ const router = createRouter({
       component: () => import("@/views/admin/AdminDashboardView.vue"),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    { path: "/:pathMatch(.*)*", name: "not-found", component: () => import("@/views/NotFoundView.vue") },
   ],
 });
 
@@ -48,6 +50,11 @@ router.beforeEach(async (to) => {
   const saved = useSavedListingsStore();
   if (auth.isAuthenticated && !saved.initialized) {
     saved.fetchSaved().catch(() => {});
+  }
+
+  const followed = useFollowedProvidersStore();
+  if (auth.isAuthenticated && !followed.initialized) {
+    followed.fetchFollowed().catch(() => {});
   }
 
   return true;

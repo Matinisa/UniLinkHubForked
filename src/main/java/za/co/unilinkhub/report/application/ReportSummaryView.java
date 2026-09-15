@@ -20,12 +20,15 @@ public record ReportSummaryView(
         LocalDateTime createdAt,
         LocalDateTime resolvedAt,
         ReporterSummary reporter,
-        TargetSummary target
+        TargetSummary target,
+        long totalReportsOnTarget
 ) {
-    public static ReportSummaryView of(Report report, ReporterSummary reporter, TargetSummary target) {
+    public static ReportSummaryView of(Report report, ReporterSummary reporter, TargetSummary target,
+                                        long totalReportsOnTarget) {
         return new ReportSummaryView(
                 report.getId(), report.getReason().name(), report.getDetails(), report.getStatus().name(),
-                report.getAdminNote(), report.getCreatedAt(), report.getResolvedAt(), reporter, target
+                report.getAdminNote(), report.getCreatedAt(), report.getResolvedAt(), reporter, target,
+                totalReportsOnTarget
         );
     }
 }

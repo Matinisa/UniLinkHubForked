@@ -3,11 +3,13 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
+import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import ListingCard from "@/components/ListingCard.vue";
 import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
+const followed = useFollowedProvidersStore();
 
 const profile = ref<ProviderProfileDTO | null>(null);
 const listings = ref<ListingDTO[]>([]);
@@ -62,29 +64,55 @@ onMounted(load);
 
     <div class="card space-y-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div class="mb-2 flex flex-wrap items-center gap-2">
-            <h1 class="font-display text-2xl font-bold text-uni-navy sm:text-[26px]">{{ profile.businessName }}</h1>
-            <span
-              v-if="profile.verificationStatus === 'VERIFIED'"
-              class="badge bg-success/15 text-success"
-            >
-              Verified
-            </span>
-            <span v-else class="badge bg-warning/15 text-warning">Pending verification</span>
-            <span class="badge bg-academic-gold/20 text-uni-navy">{{ profile.category }}</span>
+        <div class="flex items-start gap-4">
+          <div
+            v-if="profile.imageUrl"
+            class="h-16 w-16 shrink-0 rounded-full border border-light-grey bg-cover bg-center"
+            :style="{ backgroundImage: `url(${profile.imageUrl})` }"
+          ></div>
+          <div v-else class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-sky-blue/20 font-display text-xl font-bold text-uni-navy">
+            {{ profile.businessName.charAt(0) }}
           </div>
-          <p class="mb-3.5 text-sm text-medium-grey">Run by {{ profile.ownerFullName }}</p>
-          <p class="max-w-xl text-sm leading-relaxed text-charcoal">{{ profile.description }}</p>
+
+          <div>
+            <div class="mb-2 flex flex-wrap items-center gap-2">
+              <h1 class="font-display text-2xl font-bold text-uni-navy sm:text-[26px]">{{ profile.businessName }}</h1>
+              <span
+                v-if="profile.verificationStatus === 'VERIFIED'"
+                class="badge bg-success/15 text-success"
+              >
+                Verified
+              </span>
+              <span v-else class="badge bg-warning/15 text-warning">Pending verification</span>
+              <span class="badge bg-academic-gold/20 text-uni-navy">{{ profile.category }}</span>
+            </div>
+            <p class="mb-3.5 text-sm text-medium-grey">Run by {{ profile.ownerFullName }}</p>
+            <p class="max-w-xl text-sm leading-relaxed text-charcoal">{{ profile.description }}</p>
+          </div>
         </div>
 
-        <button
-          v-if="auth.isAuthenticated && !reportOpen"
-          class="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger"
-          @click="reportOpen = true"
-        >
-          Report this provider
-        </button>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <button
+            v-if="auth.isAuthenticated"
+            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-control border px-4 py-2 text-sm font-semibold"
+            :class="followed.isFollowing(profile.businessId)
+              ? 'border-campus-teal bg-campus-teal/10 text-campus-teal'
+              : 'border-uni-navy bg-white text-uni-navy hover:bg-soft-grey'"
+            @click="followed.toggleFollow(profile)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" :fill="followed.isFollowing(profile.businessId) ? '#2A9BB4' : 'none'" stroke="currentColor" stroke-width="2">
+              <path d="M12 21s-8-4.5-8-10.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 4.5C20 16.5 12 21 12 21Z" />
+            </svg>
+            {{ followed.isFollowing(profile.businessId) ? "Following" : "Follow" }}
+          </button>
+          <button
+            v-if="auth.isAuthenticated && !reportOpen"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger"
+            @click="reportOpen = true"
+          >
+            Report this provider
+          </button>
+        </div>
       </div>
 
       <div class="flex flex-wrap gap-7 border-t border-light-grey pt-4">

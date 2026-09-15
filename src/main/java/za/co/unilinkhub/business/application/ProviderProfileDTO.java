@@ -14,6 +14,7 @@ public record ProviderProfileDTO(
         String description,
         String category,
         String verificationStatus,
+        String imageUrl,
         UUID ownerId,
         String ownerFullName,
         long activeListingCount,

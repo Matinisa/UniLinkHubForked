@@ -2,6 +2,7 @@ package za.co.unilinkhub.report.repository;
 
 import za.co.unilinkhub.report.domain.Report;
 import za.co.unilinkhub.report.domain.ReportStatus;
+import za.co.unilinkhub.report.domain.ReportTargetType;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,4 +21,6 @@ public interface ReportRepository {
     List<Report> findByReporterId(UUID reporterId);
 
     long countByStatus(ReportStatus status);
+
+    long countByTargetTypeAndTargetId(ReportTargetType targetType, UUID targetId);
 }

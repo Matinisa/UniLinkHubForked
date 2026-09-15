@@ -37,7 +37,7 @@ async function saveProfile() {
 // ---- Business ----
 const businesses = ref<BusinessDTO[]>([]);
 const selectedBusinessId = ref("");
-const businessForm = ref({ businessName: "", description: "", category: "" });
+const businessForm = ref({ businessName: "", description: "", category: "", imageUrl: "" });
 const savingBusiness = ref(false);
 const businessStatus = ref("");
 const businessError = ref("");
@@ -50,6 +50,7 @@ watch(selectedBusiness, (business) => {
       businessName: business.businessName,
       description: business.description,
       category: business.category,
+      imageUrl: business.imageUrl ?? "",
     };
   }
 });
@@ -186,6 +187,21 @@ onMounted(() => {
           This business wasn't approved on its last review. Update the details below if needed,
           then resubmit for another look.
         </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div
+          v-if="businessForm.imageUrl"
+          class="h-16 w-16 shrink-0 rounded-full border border-light-grey bg-cover bg-center"
+          :style="{ backgroundImage: `url(${businessForm.imageUrl})` }"
+        ></div>
+        <div v-else class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-light-grey bg-soft-grey text-xs text-medium-grey">
+          No logo
+        </div>
+        <div class="flex-1 space-y-1.5">
+          <label class="block text-xs font-medium text-medium-grey">Logo URL <span class="font-normal">(optional)</span></label>
+          <input v-model="businessForm.imageUrl" placeholder="https://..." class="input-field" />
+        </div>
       </div>
 
       <div class="grid gap-3 sm:grid-cols-2">

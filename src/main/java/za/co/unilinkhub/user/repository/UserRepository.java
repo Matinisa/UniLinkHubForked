@@ -27,6 +27,8 @@ public interface UserRepository {
 
     List<User> findByAccountStatus(AccountStatus accountStatus);
 
+    List<User> findAll();
+
     long countAll();
 
     boolean existsByEmail(String email);

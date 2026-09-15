@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import za.co.unilinkhub.business.application.BusinessDTO;
 import za.co.unilinkhub.business.application.BusinessService;
 import za.co.unilinkhub.business.application.ProviderProfileDTO;
 import za.co.unilinkhub.business.domain.VerificationStatus;
+import za.co.unilinkhub.follow.application.FollowService;
 import za.co.unilinkhub.security.CurrentUser;
 
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.UUID;
 public class BusinessController {
 
     private final BusinessService businessService;
+    private final FollowService followService;
 
     public record CreateBusinessRequest(
             @NotBlank String businessName,
@@ -37,7 +40,7 @@ public class BusinessController {
     ) {
     }
 
-    public record UpdateBusinessRequest(String businessName, String description, String category) {
+    public record UpdateBusinessRequest(String businessName, String description, String category, String imageUrl) {
     }
 
     @PostMapping("/api/businesses")
@@ -48,7 +51,8 @@ public class BusinessController {
 
     @PatchMapping("/api/businesses/{id}")
     public BusinessDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateBusinessRequest request) {
-        return businessService.update(id, userId, request.businessName(), request.description(), request.category());
+        return businessService.update(id, userId, request.businessName(), request.description(),
+                request.category(), request.imageUrl());
     }
 
     @PostMapping("/api/businesses/{id}/request-verification")
@@ -76,6 +80,23 @@ public class BusinessController {
     @GetMapping("/api/businesses/mine")
     public List<BusinessDTO> mine(@CurrentUser UUID userId) {
         return businessService.getByOwner(userId);
+    }
+
+    @PostMapping("/api/businesses/{id}/follow")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void follow(@CurrentUser UUID userId, @PathVariable UUID id) {
+        followService.follow(userId, id);
+    }
+
+    @DeleteMapping("/api/businesses/{id}/follow")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unfollow(@CurrentUser UUID userId, @PathVariable UUID id) {
+        followService.unfollow(userId, id);
+    }
+
+    @GetMapping("/api/businesses/followed/mine")
+    public List<ProviderProfileDTO> followedMine(@CurrentUser UUID userId) {
+        return followService.mine(userId);
     }
 
     @GetMapping("/api/admin/businesses")

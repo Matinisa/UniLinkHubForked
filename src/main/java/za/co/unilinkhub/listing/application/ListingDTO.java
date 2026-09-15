@@ -22,8 +22,14 @@ public record ListingDTO(
         String imageUrl,
         Integer durationMinutes,
         String availabilitySchedule,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        long savedCount
 ) {
+    public ListingDTO withSavedCount(long savedCount) {
+        return new ListingDTO(id, businessId, type, name, description, category, price, status, viewCount,
+                stockQuantity, imageUrl, durationMinutes, availabilitySchedule, createdAt, savedCount);
+    }
+
     public static ListingDTO from(Listing listing) {
         Integer stockQuantity = null;
         String imageUrl = null;
@@ -48,7 +54,7 @@ public record ListingDTO(
                 listing.getDescription(), listing.getCategory(), listing.getPrice(),
                 listing.getStatus().name(), listing.getViewCount(),
                 stockQuantity, imageUrl, durationMinutes, availabilitySchedule,
-                listing.getCreatedAt()
+                listing.getCreatedAt(), 0
         );
     }
 }

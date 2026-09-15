@@ -17,4 +17,7 @@ public interface JpaSavedListingRepository extends JpaRepository<SavedListing, U
 
     @Override
     List<SavedListing> findByUserId(UUID userId);
+
+    @Override
+    long countByListingId(UUID listingId);
 }

@@ -32,9 +32,10 @@ public class BusinessService {
         return BusinessDTO.from(businessRepository.save(business));
     }
 
-    public BusinessDTO update(UUID businessId, UUID requesterId, String businessName, String description, String category) {
+    public BusinessDTO update(UUID businessId, UUID requesterId, String businessName, String description,
+                               String category, String imageUrl) {
         Business business = findOwned(businessId, requesterId);
-        business.updateDetails(businessName, description, category);
+        business.updateDetails(businessName, description, category, imageUrl);
         return BusinessDTO.from(businessRepository.save(business));
     }
 
@@ -79,7 +80,7 @@ public class BusinessService {
 
         return new ProviderProfileDTO(
                 business.getId(), business.getBusinessName(), business.getDescription(), business.getCategory(),
-                business.getVerificationStatus().name(), business.getOwnerId(),
+                business.getVerificationStatus().name(), business.getImageUrl(), business.getOwnerId(),
                 owner.firstName() + " " + owner.lastName(), activeCount, totalViews, business.getCreatedAt()
         );
     }

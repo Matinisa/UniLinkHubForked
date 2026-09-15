@@ -3,6 +3,7 @@ package za.co.unilinkhub.report.infrastructure;
 import org.springframework.data.jpa.repository.JpaRepository;
 import za.co.unilinkhub.report.domain.Report;
 import za.co.unilinkhub.report.domain.ReportStatus;
+import za.co.unilinkhub.report.domain.ReportTargetType;
 import za.co.unilinkhub.report.repository.ReportRepository;
 
 import java.util.List;
@@ -18,4 +19,7 @@ public interface JpaReportRepository extends JpaRepository<Report, UUID>, Report
 
     @Override
     long countByStatus(ReportStatus status);
+
+    @Override
+    long countByTargetTypeAndTargetId(ReportTargetType targetType, UUID targetId);
 }

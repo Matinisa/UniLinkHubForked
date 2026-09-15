@@ -115,6 +115,10 @@ public class User {
         this.accountStatus = AccountStatus.SUSPENDED;
     }
 
+    public void reactivate() {
+        this.accountStatus = AccountStatus.ACTIVE;
+    }
+
     public void deactivate() {
         this.accountStatus = AccountStatus.DEACTIVATED;
     }

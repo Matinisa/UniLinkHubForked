@@ -5,6 +5,7 @@ import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { recordView } from "@/lib/recentlyViewed";
+import ListingCard from "@/components/ListingCard.vue";
 import type { BusinessDTO, ListingDTO } from "@/lib/types";
 
 const route = useRoute();
@@ -13,6 +14,7 @@ const saved = useSavedListingsStore();
 
 const listing = ref<ListingDTO | null>(null);
 const business = ref<BusinessDTO | null>(null);
+const moreFromSeller = ref<ListingDTO[]>([]);
 const error = ref("");
 const reportOpen = ref(false);
 const reportReason = ref("MISREPRESENTATION");
@@ -23,6 +25,13 @@ function formatPrice(price: number) {
   return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
 }
 
+function relativeDays(iso: string): string {
+  const days = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days < 1) return "Listed today";
+  if (days === 1) return "Listed 1 day ago";
+  return `Listed ${days} days ago`;
+}
+
 async function load() {
   try {
     const { data } = await api.get<ListingDTO>(`/listings/${route.params.id}`);
@@ -30,6 +39,11 @@ async function load() {
     recordView(data);
     const { data: businessData } = await api.get<BusinessDTO>(`/businesses/${data.businessId}`);
     business.value = businessData;
+
+    const { data: businessListings } = await api.get<ListingDTO[]>(`/listings/business/${data.businessId}`);
+    moreFromSeller.value = businessListings
+      .filter((l) => l.id !== data.id && l.status === "ACTIVE")
+      .slice(0, 4);
   } catch (err) {
     error.value = extractErrorMessage(err);
   }
@@ -106,6 +120,30 @@ onMounted(load);
         <dt class="inline font-medium">Availability:</dt>
         <dd class="inline"> {{ listing.availabilitySchedule ?? "Contact seller" }}</dd>
       </dl>
+
+      <div class="flex flex-wrap items-center gap-4 border-t border-light-grey pt-3 text-xs text-medium-grey">
+        <span class="inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A94A6" stroke-width="2">
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+          {{ listing.viewCount }} views
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#DC2626">
+            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" />
+          </svg>
+          {{ listing.savedCount }} student{{ listing.savedCount === 1 ? "" : "s" }} saved this
+        </span>
+        <span>{{ relativeDays(listing.createdAt) }}</span>
+      </div>
+      </div>
+    </div>
+
+    <!-- More from this seller -->
+    <div v-if="business && moreFromSeller.length > 0">
+      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">More from {{ business.businessName }}</h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ListingCard v-for="l in moreFromSeller" :key="l.id" :listing="l" />
       </div>
     </div>
 

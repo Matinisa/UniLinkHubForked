@@ -35,6 +35,10 @@ public class SavedListingService {
         savedListingRepository.deleteByUserIdAndListingId(userId, listingId);
     }
 
+    public long countSaves(UUID listingId) {
+        return savedListingRepository.countByListingId(listingId);
+    }
+
     public List<ListingDTO> mine(UUID userId) {
         return savedListingRepository.findByUserId(userId).stream()
                 .sorted(Comparator.comparing(SavedListing::getCreatedAt).reversed())

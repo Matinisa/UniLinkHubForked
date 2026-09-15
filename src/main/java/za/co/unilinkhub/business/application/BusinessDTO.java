@@ -12,13 +12,14 @@ public record BusinessDTO(
         String description,
         String category,
         String verificationStatus,
+        String imageUrl,
         LocalDateTime createdAt
 ) {
     public static BusinessDTO from(Business business) {
         return new BusinessDTO(
                 business.getId(), business.getOwnerId(), business.getBusinessName(),
                 business.getDescription(), business.getCategory(),
-                business.getVerificationStatus().name(), business.getCreatedAt()
+                business.getVerificationStatus().name(), business.getImageUrl(), business.getCreatedAt()
         );
     }
 }
