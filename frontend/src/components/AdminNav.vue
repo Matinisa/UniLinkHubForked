@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
-const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 
@@ -28,24 +27,7 @@ function handleLogout() {
         </span>
       </div>
 
-      <nav class="flex items-center gap-6">
-        <RouterLink
-          to="/admin/reports"
-          class="border-b-2 pb-1 text-sm font-medium"
-          :class="route.name === 'admin-reports' ? 'border-campus-teal font-semibold text-uni-navy' : 'border-transparent text-charcoal hover:text-campus-teal'"
-        >
-          Reports
-        </RouterLink>
-        <RouterLink
-          to="/admin/businesses"
-          class="border-b-2 pb-1 text-sm font-medium"
-          :class="route.name === 'admin-businesses' ? 'border-campus-teal font-semibold text-uni-navy' : 'border-transparent text-charcoal hover:text-campus-teal'"
-        >
-          Business verification
-        </RouterLink>
-
-        <div class="h-5 w-px bg-light-grey"></div>
-
+      <nav class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <div class="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-uni-navy font-display text-xs font-bold text-white">
             {{ initials() }}

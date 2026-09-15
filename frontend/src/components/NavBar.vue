@@ -30,7 +30,7 @@ function handleLogout() {
           </RouterLink>
           <RouterLink
             v-if="auth.isAdmin"
-            to="/admin/reports"
+            to="/admin"
             class="rounded-full border border-academic-gold bg-academic-gold/15 px-2.5 py-1 text-xs font-semibold text-uni-navy hover:bg-academic-gold/25"
           >
             Admin console
