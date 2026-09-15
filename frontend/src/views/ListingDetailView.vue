@@ -3,12 +3,13 @@ import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import type { ListingDTO } from "@/lib/types";
+import type { BusinessDTO, ListingDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
 
 const listing = ref<ListingDTO | null>(null);
+const business = ref<BusinessDTO | null>(null);
 const error = ref("");
 const reportOpen = ref(false);
 const reportReason = ref("MISREPRESENTATION");
@@ -23,6 +24,8 @@ async function load() {
   try {
     const { data } = await api.get<ListingDTO>(`/listings/${route.params.id}`);
     listing.value = data;
+    const { data: businessData } = await api.get<BusinessDTO>(`/businesses/${data.businessId}`);
+    business.value = businessData;
   } catch (err) {
     error.value = extractErrorMessage(err);
   }
@@ -57,6 +60,14 @@ onMounted(load);
         <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
       </div>
       <p class="text-sm text-medium-grey">{{ listing.category }}</p>
+      <RouterLink
+        v-if="business"
+        :to="`/providers/${business.id}`"
+        class="inline-flex w-fit items-center gap-1.5 text-sm text-charcoal hover:text-campus-teal"
+      >
+        Sold by <span class="font-medium underline">{{ business.businessName }}</span>
+        <span v-if="business.verificationStatus === 'VERIFIED'" class="badge bg-success/15 text-success">Verified</span>
+      </RouterLink>
       <p class="whitespace-pre-line text-charcoal">{{ listing.description }}</p>
       <p class="font-display text-2xl font-semibold text-campus-teal">{{ formatPrice(listing.price) }}</p>
 

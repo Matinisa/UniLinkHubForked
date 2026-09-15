@@ -103,3 +103,16 @@ export interface AdminBusinessView {
   ownerStudentNumber: string;
   ownerFullName: string;
 }
+
+export interface ProviderProfileDTO {
+  businessId: string;
+  businessName: string;
+  description: string;
+  category: string;
+  verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+  ownerId: string;
+  ownerFullName: string;
+  activeListingCount: number;
+  totalViews: number;
+  memberSince: string;
+}

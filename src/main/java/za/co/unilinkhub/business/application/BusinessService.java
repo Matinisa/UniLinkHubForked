@@ -7,6 +7,10 @@ import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.common.exception.UnauthorizedException;
+import za.co.unilinkhub.listing.domain.Listing;
+import za.co.unilinkhub.listing.domain.ListingStatus;
+import za.co.unilinkhub.listing.repository.ListingRepository;
+import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 
 import java.util.Comparator;
@@ -18,6 +22,7 @@ import java.util.UUID;
 public class BusinessService {
 
     private final BusinessRepository businessRepository;
+    private final ListingRepository listingRepository;
     private final UserService userService;
 
     public BusinessDTO create(UUID ownerId, String businessName, String description, String category) {
@@ -41,6 +46,21 @@ public class BusinessService {
 
     public BusinessDTO getById(UUID id) {
         return BusinessDTO.from(findById(id));
+    }
+
+    public ProviderProfileDTO getProviderProfile(UUID businessId) {
+        Business business = findById(businessId);
+        UserDTO owner = userService.getById(business.getOwnerId());
+        List<Listing> listings = listingRepository.findByBusinessId(businessId);
+
+        long activeCount = listings.stream().filter(l -> l.getStatus() == ListingStatus.ACTIVE).count();
+        long totalViews = listings.stream().mapToLong(Listing::getViewCount).sum();
+
+        return new ProviderProfileDTO(
+                business.getId(), business.getBusinessName(), business.getDescription(), business.getCategory(),
+                business.getVerificationStatus().name(), business.getOwnerId(),
+                owner.firstName() + " " + owner.lastName(), activeCount, totalViews, business.getCreatedAt()
+        );
     }
 
     public List<BusinessDTO> getByOwner(UUID ownerId) {

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.business.application.AdminBusinessView;
 import za.co.unilinkhub.business.application.BusinessDTO;
 import za.co.unilinkhub.business.application.BusinessService;
+import za.co.unilinkhub.business.application.ProviderProfileDTO;
 import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.security.CurrentUser;
 
@@ -58,6 +59,11 @@ public class BusinessController {
     @GetMapping("/api/businesses/{id}")
     public BusinessDTO getById(@PathVariable UUID id) {
         return businessService.getById(id);
+    }
+
+    @GetMapping("/api/businesses/{id}/profile")
+    public ProviderProfileDTO profile(@PathVariable UUID id) {
+        return businessService.getProviderProfile(id);
     }
 
     @GetMapping("/api/businesses/mine")
