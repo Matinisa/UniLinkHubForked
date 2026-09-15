@@ -28,6 +28,9 @@ function handleLogout() {
           <RouterLink to="/dashboard" class="text-sm font-medium text-charcoal hover:text-campus-teal">
             Dashboard
           </RouterLink>
+          <RouterLink to="/account" class="text-sm font-medium text-charcoal hover:text-campus-teal">
+            My account
+          </RouterLink>
           <RouterLink
             v-if="auth.isAdmin"
             to="/admin"

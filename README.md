@@ -28,8 +28,10 @@ packages they started as.
 - Single-account model: any student can call "Become a Seller" from their dashboard rather
   than registering a separate seller account.
 - Register/manage a business, request verification.
-- Create/edit/deactivate Product or Service listings; public browse + keyword/category search;
-  per-listing view counts.
+- Create/edit/deactivate/reactivate Product or Service listings, editable inline from the
+  dashboard (title, category, description, price, stock/duration/availability, status).
+- Public browse with keyword/category search, price range, product/service type, verified-
+  sellers-only, and sort (newest, price asc/desc, most viewed); per-listing view counts.
 - Report/flag a listing, plus an admin review queue (begin-review / resolve / dismiss) that
   resolves reporter/target ids into names for display, and a status-counts endpoint.
 - Business verification: admin can list pending businesses and verify/reject them.
@@ -38,9 +40,11 @@ packages they started as.
   list - the Buyer Dashboard requirements from Section 11.1, all on the same single dashboard
   alongside the seller section.
 - Provider profile page (business info, verification badge, stats, their active listings).
-- A functional Vue UI for all of the above: browse, listing detail + report, provider
-  profile, login/register, a combined buyer/seller dashboard, and an admin console (report
-  queue, business verification) gated by role.
+- Account settings page ("My account"): edit profile, edit business details, and change
+  password (with current-password verification).
+- A functional Vue UI for all of the above: browse with filters, listing detail + report,
+  provider profile, login/register, account settings, a combined buyer/seller dashboard, and
+  an admin console (report queue, business verification) gated by role.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

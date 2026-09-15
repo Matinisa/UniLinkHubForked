@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.user.application.ChangePasswordUseCase;
 import za.co.unilinkhub.user.application.UpdateProfileUseCase;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
@@ -23,6 +24,7 @@ public class UserController {
 
     private final UserService userService;
     private final UpdateProfileUseCase updateProfileUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
 
     @GetMapping("/me")
     public UserResponse me(@CurrentUser UUID userId) {
@@ -33,6 +35,11 @@ public class UserController {
     public UserResponse updateProfile(@CurrentUser UUID userId, @Valid @RequestBody UserRequest.UpdateProfile request) {
         UserDTO updated = updateProfileUseCase.execute(userId, request.firstName(), request.lastName(), request.phoneNumber());
         return UserResponse.from(updated);
+    }
+
+    @PostMapping("/me/change-password")
+    public void changePassword(@CurrentUser UUID userId, @Valid @RequestBody UserRequest.ChangePassword request) {
+        changePasswordUseCase.execute(userId, request.currentPassword(), request.newPassword());
     }
 
     @PostMapping("/me/become-seller")

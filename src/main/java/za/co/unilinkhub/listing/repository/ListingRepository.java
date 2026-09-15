@@ -2,6 +2,7 @@ package za.co.unilinkhub.listing.repository;
 
 import za.co.unilinkhub.listing.domain.Listing;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,5 +15,5 @@ public interface ListingRepository {
 
     List<Listing> findByBusinessId(UUID businessId);
 
-    List<Listing> search(String category, String keyword);
+    List<Listing> search(String category, String keyword, BigDecimal minPrice, BigDecimal maxPrice);
 }

@@ -32,4 +32,8 @@ public class Service extends Listing {
     public void updateSchedule(String availabilitySchedule) {
         this.availabilitySchedule = availabilitySchedule;
     }
+
+    public void updateDuration(Integer durationMinutes) {
+        this.durationMinutes = durationMinutes;
+    }
 }

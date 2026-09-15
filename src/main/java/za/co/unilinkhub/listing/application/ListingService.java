@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.unilinkhub.business.domain.Business;
+import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.common.exception.UnauthorizedException;
@@ -12,8 +13,11 @@ import za.co.unilinkhub.listing.domain.Product;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,11 +42,30 @@ public class ListingService {
         return ListingDTO.from(listingRepository.save(service));
     }
 
-    public ListingDTO update(UUID requesterId, UUID listingId, String name, String description,
-                              String category, BigDecimal price) {
+    public ListingDTO update(UUID requesterId, UUID listingId, String name, String description, String category,
+                              BigDecimal price, Integer stockQuantity, Integer durationMinutes,
+                              String availabilitySchedule, String status) {
         Listing listing = findListing(listingId);
         assertOwnership(listing.getBusinessId(), requesterId);
         listing.updateBasicDetails(name, description, category, price);
+
+        if (listing instanceof Product product && stockQuantity != null) {
+            product.updateStock(stockQuantity);
+        }
+        if (listing instanceof za.co.unilinkhub.listing.domain.Service service) {
+            if (durationMinutes != null) {
+                service.updateDuration(durationMinutes);
+            }
+            if (availabilitySchedule != null && !availabilitySchedule.isBlank()) {
+                service.updateSchedule(availabilitySchedule);
+            }
+        }
+        if ("ACTIVE".equalsIgnoreCase(status)) {
+            listing.reactivate();
+        } else if ("INACTIVE".equalsIgnoreCase(status)) {
+            listing.deactivate();
+        }
+
         return ListingDTO.from(listingRepository.save(listing));
     }
 
@@ -53,6 +76,13 @@ public class ListingService {
         listingRepository.save(listing);
     }
 
+    public void reactivate(UUID requesterId, UUID listingId) {
+        Listing listing = findListing(listingId);
+        assertOwnership(listing.getBusinessId(), requesterId);
+        listing.reactivate();
+        listingRepository.save(listing);
+    }
+
     @Transactional
     public ListingDTO getById(UUID id) {
         Listing listing = findListing(id);
@@ -60,8 +90,32 @@ public class ListingService {
         return ListingDTO.from(listingRepository.save(listing));
     }
 
-    public List<ListingDTO> search(String category, String keyword) {
-        return listingRepository.search(category, keyword).stream().map(ListingDTO::from).toList();
+    public List<ListingDTO> search(String category, String keyword, BigDecimal minPrice, BigDecimal maxPrice,
+                                    String type, boolean verifiedOnly, String sort) {
+        List<Listing> listings = listingRepository.search(category, keyword, minPrice, maxPrice);
+
+        if (type != null && !type.isBlank()) {
+            listings = listings.stream().filter(l -> matchesType(l, type)).toList();
+        }
+
+        if (verifiedOnly) {
+            Set<UUID> verifiedBusinessIds = businessRepository.findByVerificationStatus(VerificationStatus.VERIFIED)
+                    .stream().map(Business::getId).collect(Collectors.toSet());
+            listings = listings.stream().filter(l -> verifiedBusinessIds.contains(l.getBusinessId())).toList();
+        }
+
+        Comparator<Listing> comparator = switch (sort == null ? "" : sort) {
+            case "price_asc" -> Comparator.comparing(Listing::getPrice);
+            case "price_desc" -> Comparator.comparing(Listing::getPrice).reversed();
+            case "views" -> Comparator.comparingLong(Listing::getViewCount).reversed();
+            default -> Comparator.comparing(Listing::getCreatedAt).reversed();
+        };
+
+        return listings.stream().sorted(comparator).map(ListingDTO::from).toList();
+    }
+
+    private boolean matchesType(Listing listing, String type) {
+        return listing.getClass().getSimpleName().equalsIgnoreCase(type);
     }
 
     public List<ListingDTO> byBusiness(UUID businessId) {

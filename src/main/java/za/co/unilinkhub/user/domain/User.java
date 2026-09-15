@@ -108,6 +108,10 @@ public class User {
         this.accountStatus = AccountStatus.DEACTIVATED;
     }
 
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
+
     public void updateProfile(String firstName, String lastName, String phoneNumber) {
         if (firstName != null && !firstName.isBlank()) {
             this.firstName = firstName;

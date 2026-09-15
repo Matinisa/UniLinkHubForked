@@ -47,7 +47,9 @@ public class ListingController {
     ) {
     }
 
-    public record UpdateListingRequest(String name, String description, String category, BigDecimal price) {
+    public record UpdateListingRequest(String name, String description, String category, BigDecimal price,
+                                        Integer stockQuantity, Integer durationMinutes,
+                                        String availabilitySchedule, String status) {
     }
 
     @PostMapping("/products")
@@ -66,12 +68,19 @@ public class ListingController {
 
     @PatchMapping("/{id}")
     public ListingDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateListingRequest request) {
-        return listingService.update(userId, id, request.name(), request.description(), request.category(), request.price());
+        return listingService.update(userId, id, request.name(), request.description(), request.category(),
+                request.price(), request.stockQuantity(), request.durationMinutes(),
+                request.availabilitySchedule(), request.status());
     }
 
     @PostMapping("/{id}/deactivate")
     public void deactivate(@CurrentUser UUID userId, @PathVariable UUID id) {
         listingService.deactivate(userId, id);
+    }
+
+    @PostMapping("/{id}/reactivate")
+    public void reactivate(@CurrentUser UUID userId, @PathVariable UUID id) {
+        listingService.reactivate(userId, id);
     }
 
     @GetMapping("/{id}")
@@ -81,8 +90,13 @@ public class ListingController {
 
     @GetMapping
     public List<ListingDTO> search(@RequestParam(required = false) String category,
-                                    @RequestParam(required = false) String keyword) {
-        return listingService.search(category, keyword);
+                                    @RequestParam(required = false) String keyword,
+                                    @RequestParam(required = false) BigDecimal minPrice,
+                                    @RequestParam(required = false) BigDecimal maxPrice,
+                                    @RequestParam(required = false) String type,
+                                    @RequestParam(defaultValue = "false") boolean verifiedOnly,
+                                    @RequestParam(required = false) String sort) {
+        return listingService.search(category, keyword, minPrice, maxPrice, type, verifiedOnly, sort);
     }
 
     @GetMapping("/business/{businessId}")

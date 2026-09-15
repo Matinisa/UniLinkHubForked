@@ -171,6 +171,70 @@ async function deactivateListing(id: string) {
   }
 }
 
+async function reactivateListing(id: string) {
+  try {
+    await api.post(`/listings/${id}/reactivate`);
+    await loadBusinesses();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  }
+}
+
+// ---- Seller: edit listing ----
+const editingListingId = ref<string | null>(null);
+const editForm = ref({
+  name: "",
+  category: "",
+  description: "",
+  price: 0,
+  status: "ACTIVE" as "ACTIVE" | "INACTIVE",
+  stockQuantity: 0,
+  durationMinutes: 0,
+  availabilitySchedule: "",
+});
+const savingEdit = ref(false);
+
+function startEdit(listing: ListingDTO) {
+  editingListingId.value = listing.id;
+  editForm.value = {
+    name: listing.name,
+    category: listing.category,
+    description: listing.description,
+    price: listing.price,
+    status: listing.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    stockQuantity: listing.stockQuantity ?? 0,
+    durationMinutes: listing.durationMinutes ?? 0,
+    availabilitySchedule: listing.availabilitySchedule ?? "",
+  };
+}
+
+function cancelEdit() {
+  editingListingId.value = null;
+}
+
+async function saveEdit(listing: ListingDTO) {
+  savingEdit.value = true;
+  error.value = "";
+  try {
+    await api.patch(`/listings/${listing.id}`, {
+      name: editForm.value.name,
+      category: editForm.value.category,
+      description: editForm.value.description,
+      price: editForm.value.price,
+      status: editForm.value.status,
+      stockQuantity: listing.type === "PRODUCT" ? editForm.value.stockQuantity : undefined,
+      durationMinutes: listing.type === "SERVICE" ? editForm.value.durationMinutes : undefined,
+      availabilitySchedule: listing.type === "SERVICE" ? editForm.value.availabilitySchedule : undefined,
+    });
+    editingListingId.value = null;
+    await loadBusinesses();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    savingEdit.value = false;
+  }
+}
+
 onMounted(async () => {
   recentlyViewed.value = getRecentlyViewed();
   await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved()]);
@@ -270,20 +334,73 @@ onMounted(async () => {
             </div>
             <p class="text-sm text-medium-grey">{{ business.category }}</p>
 
-            <ul class="mt-2 space-y-1">
-              <li
-                v-for="listing in listingsByBusiness[business.id] ?? []"
-                :key="listing.id"
-                class="flex items-center justify-between text-sm"
-              >
-                <span>{{ listing.name }} · {{ listing.status }} · {{ listing.viewCount }} views</span>
-                <button
-                  v-if="listing.status === 'ACTIVE'"
-                  class="text-xs text-danger underline"
-                  @click="deactivateListing(listing.id)"
-                >
-                  Deactivate
-                </button>
+            <ul class="mt-2 space-y-2">
+              <li v-for="listing in listingsByBusiness[business.id] ?? []" :key="listing.id">
+                <!-- Normal row -->
+                <div v-if="editingListingId !== listing.id" class="flex items-center justify-between rounded-control bg-soft-grey px-3 py-2 text-sm">
+                  <span :class="{ 'text-medium-grey line-through': listing.status === 'INACTIVE' }">
+                    {{ listing.name }} · {{ listing.status }} · {{ listing.viewCount }} views
+                  </span>
+                  <div class="flex items-center gap-3">
+                    <button class="text-xs font-medium text-campus-teal underline" @click="startEdit(listing)">Edit</button>
+                    <button
+                      v-if="listing.status === 'ACTIVE'"
+                      class="text-xs font-medium text-danger underline"
+                      @click="deactivateListing(listing.id)"
+                    >
+                      Deactivate
+                    </button>
+                    <button v-else class="text-xs font-medium text-success underline" @click="reactivateListing(listing.id)">
+                      Reactivate
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Edit form -->
+                <div v-else class="space-y-3 rounded-control border border-campus-teal bg-white p-3">
+                  <div class="flex items-center justify-between text-sm font-medium text-uni-navy">
+                    <span>Editing: {{ listing.name }}</span>
+                    <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
+                  </div>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <input v-model="editForm.name" class="input-field sm:col-span-2" placeholder="Title" />
+                    <input v-model="editForm.category" class="input-field" placeholder="Category" />
+                    <select v-model="editForm.status" class="input-field">
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                    <textarea v-model="editForm.description" class="input-field sm:col-span-2" rows="2"></textarea>
+                    <input v-model.number="editForm.price" type="number" min="0" step="0.01" class="input-field" placeholder="Price (ZAR)" />
+                    <input
+                      v-if="listing.type === 'PRODUCT'"
+                      v-model.number="editForm.stockQuantity"
+                      type="number"
+                      min="0"
+                      class="input-field"
+                      placeholder="Stock quantity"
+                    />
+                    <template v-else>
+                      <input
+                        v-model.number="editForm.durationMinutes"
+                        type="number"
+                        min="0"
+                        class="input-field"
+                        placeholder="Duration (minutes)"
+                      />
+                      <input
+                        v-model="editForm.availabilitySchedule"
+                        class="input-field sm:col-span-2"
+                        placeholder="Availability (e.g. Weekdays 2-6pm)"
+                      />
+                    </template>
+                  </div>
+                  <div class="flex justify-end gap-2">
+                    <button class="btn-secondary text-sm" @click="cancelEdit">Cancel</button>
+                    <button class="btn-primary text-sm" :disabled="savingEdit" @click="saveEdit(listing)">
+                      {{ savingEdit ? "Saving..." : "Save changes" }}
+                    </button>
+                  </div>
+                </div>
               </li>
             </ul>
           </li>

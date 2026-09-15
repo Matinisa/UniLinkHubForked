@@ -27,4 +27,10 @@ public class UserRequest {
             String phoneNumber
     ) {
     }
+
+    public record ChangePassword(
+            @NotBlank String currentPassword,
+            @NotBlank String newPassword
+    ) {
+    }
 }

@@ -46,6 +46,10 @@ export const useAuthStore = defineStore("auth", {
       const { data } = await api.post<UserResponse>("/users/me/become-seller");
       this.user = data;
     },
+    async updateProfile(payload: { firstName: string; lastName: string; phoneNumber: string }) {
+      const { data } = await api.patch<UserResponse>("/users/me", payload);
+      this.user = data;
+    },
     applySession(auth: AuthResponse) {
       this.token = auth.token;
       this.user = auth.user;
